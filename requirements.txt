@@ -1,0 +1,9 @@
+numpy>=1.21.0
+wujihandpy==1.2.0b0.dev1
+avp_stream
+mujoco
+pin>=3.8.0
+autograd
+nlopt
+# Note: pin can be installed via conda(pip install pinocchio is incorrect):
+# conda install -c conda-forge pinocchio

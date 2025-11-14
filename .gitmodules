@@ -1,0 +1,3 @@
+[submodule "example/utils/mujoco-sim"]
+	path = example/utils/mujoco-sim
+	url = https://github.com/Wuji-Technology-Co-Ltd/mujoco-sim.git

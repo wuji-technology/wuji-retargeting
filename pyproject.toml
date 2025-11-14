@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wuji-retargeting"
+version = "0.1.0"
+description = "High-precision hand pose retargeting system for WujiHand using DexRetargeting algorithm"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "numpy>=1.21.0",
+    "autograd",
+    "nlopt",
+    "pin>=3.8.0",
+    # Note: The following dependencies may require special installation:
+    # - pinocchio: Install via conda: conda install -c conda-forge pinocchio
+]
+
+[tool.setuptools]
+packages = ["wuji_retargeting"]
+
+# Important: Ensure URDF and STL files are included in the package
+[tool.setuptools.package-data]
+"wuji_retargeting" = [
+    "urdf/*.urdf",
+    "meshes/**/*.STL",
+]
+

@@ -1,0 +1,8 @@
+# Ignore all data files except example files
+*.pkl
+!record_example.pkl
+
+# Ignore other temporary data files
+*.tmp
+*.log
+
