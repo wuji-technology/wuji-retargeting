@@ -79,10 +79,10 @@ class WujiHandRetargeter:
         Retarget hand pose to Wuji Hand joint positions.
         
         Args:
-            Hand_pose: hand pose 25 * (4*4) - hand landmarks in 3D
+            hand_pose: Hand pose array of shape (25, 4, 4) - 25 joints with 4x4 transformation matrices
             
         Returns:
-            Wujihand_positions, which should be used to command the Wujihands
+            Array of shape (5, 4) containing joint positions for Wuji Hand fingers
         """
         hand_pose = np.asarray(hand_pose, dtype=np.float64)
         if hand_pose.shape != (25, 4, 4):
@@ -99,8 +99,8 @@ class WujiHandRetargeter:
         reference = regularized_mediapipe_pose[indices[1], :] - regularized_mediapipe_pose[indices[0], :]
         
         # Run retargeting optimization
-        Wujihand_positions = self._retarget_optimization(ref_value=reference).reshape(5,4)
-        return Wujihand_positions
+        wuji_hand_positions = self._retarget_optimization(ref_value=reference).reshape(5,4)
+        return wuji_hand_positions
     
     def _retarget_optimization(self, ref_value: np.ndarray) -> np.ndarray:
         """Internal method to run optimization and filtering."""

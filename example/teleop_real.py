@@ -52,24 +52,19 @@ def run_teleop(
             # Get finger data
             fingers_data = input_device.get_fingers_data()
             fingers_mat = fingers_data[f"{hand_side}_fingers"]  # (25, 4, 4)
-            
-            # Retarget using AVP utility
-            Wujihand_positions = hand_retargeter.retarget(fingers_mat)
-
-            #Wujihand_positions = retarget_vision_pro(fingers_mat, hand_side=hand_side)
-            handcontroller.set_joint_target_position(Wujihand_positions)
+            wuji_hand_positions = hand_retargeter.retarget(fingers_mat)
+            handcontroller.set_joint_target_position(wuji_hand_positions)
             
             time.sleep(0.005)
     except KeyboardInterrupt:
         print("\nStopping controller...")
     finally:
-        # Cleanup
         hand.write_joint_enabled(False)
-        # input_device.cleanup()
+
 
 if __name__ == "__main__":
     config = {
-        "hand_side": "left", # "right" | "left"
+        "hand_side": "right", # "right" | "left"
         "input_device_type": "visionpro_replay",  # "visionpro_real" | "visionpro_replay"
         "visionpro_record_path": "record_example.pkl",
         "visionpro_ip": "192.168.50.127",
