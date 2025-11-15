@@ -9,13 +9,13 @@ import sys
 from pathlib import Path
 import wujihandpy
 import time
+from wuji_retargeting import WujiHandRetargeter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from input_devices import VisionPro, VisionProReplay
-from utils.avp_utils import retarget_vision_pro
 
 
 def run_teleop(
@@ -45,6 +45,7 @@ def run_teleop(
     if input_device_type not in device_map:
         raise ValueError(f"Unknown input device type: {input_device_type}")
     input_device = device_map[input_device_type]()
+    hand_retargeter = WujiHandRetargeter(hand_side)
     
     try:
         while True:
@@ -53,11 +54,10 @@ def run_teleop(
             fingers_mat = fingers_data[f"{hand_side}_fingers"]  # (25, 4, 4)
             
             # Retarget using AVP utility
-            retarget_result = retarget_vision_pro(fingers_mat, hand_side=hand_side)
-            
-            # Reshape to (5, 4) and send to hand (using controller with filter)
-            hand_positions = retarget_result.robot_qpos.reshape(5, 4)
-            handcontroller.set_joint_target_position(hand_positions)
+            Wujihand_positions = hand_retargeter.retarget(fingers_mat)
+
+            #Wujihand_positions = retarget_vision_pro(fingers_mat, hand_side=hand_side)
+            handcontroller.set_joint_target_position(Wujihand_positions)
             
             time.sleep(0.005)
     except KeyboardInterrupt:

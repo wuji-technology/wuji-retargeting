@@ -4,15 +4,13 @@ Utils Module
 Utility functions for example scripts.
 """
 
+## maybe could be used in the future like dex-retargeting utils and xed-retargeting, but for now let it be easy 
+'''
 from .avp_utils import (
-    convert_hand_matrices_to_mediapipe,
-    convert_vision_pro_to_mediapipe_format,
-    retarget_vision_pro,
+    
 )
 
 __all__ = [
-    'convert_hand_matrices_to_mediapipe',
-    'convert_vision_pro_to_mediapipe_format',
-    'retarget_vision_pro',
+    
 ]
-
+'''

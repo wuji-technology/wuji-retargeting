@@ -7,7 +7,6 @@ This module provides retargeting utilities for Wuji hand, including:
 
 from .retarget import (
     WujiHandRetargeter,
-    RetargetingResult,
 )
 from .mediapipe import (
     apply_mediapipe_transformations,
@@ -15,6 +14,5 @@ from .mediapipe import (
 
 __all__ = [
     'WujiHandRetargeter',
-    'RetargetingResult',
     'apply_mediapipe_transformations',
 ]

@@ -54,7 +54,6 @@ wuji_retargeting/
 │   │   └── visionpro_replay.py  # Vision Pro 回放输入
 │   ├── data/                # 录制数据目录
 │   └── utils/               # 工具函数
-│       ├── avp_utils.py      # Apple Vision Pro 工具函数
 │       └── mujoco-sim/       # MuJoCo 仿真模型
 ├── wuji_retargeting/        # 核心重定向包
 │   ├── __init__.py          # 包导出

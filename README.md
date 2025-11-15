@@ -54,7 +54,6 @@ wuji_retargeting/
 │   │   └── visionpro_replay.py  # Vision Pro replay input
 │   ├── data/                # Recorded data directory
 │   └── utils/               # Utilities
-│       ├── avp_utils.py      # Apple Vision Pro utilities
 │       └── mujoco-sim/       # MuJoCo simulation models
 ├── wuji_retargeting/        # Core retargeting package
 │   ├── __init__.py          # Package exports
