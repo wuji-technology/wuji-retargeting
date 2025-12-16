@@ -1,186 +1,287 @@
-# WujiHand 重定向系统
+中文 | [English](README.md)
 
-[English](README.md) | 中文
+# WujiHand Retargeting
 
-基于 DexRetargeting 算法的高精度手部姿态重定向系统，支持 Vision Pro 手部跟踪输入，实现实时遥操作。
+基于 DexPilot 算法的 WujiHand 手部姿态重定向系统。
 
-## 演示视频
+## 演示
 
-https://github.com/user-attachments/assets/232eec4a-4b04-43cb-bc4b-a64d8fe1d18b
+https://vimeo.com/1136862746
 
-或直接访问: https://vimeo.com/1136862746
+## 环境要求
+
+- Python >= 3.10
+
+## 安装
+
+```bash
+git clone --recurse-submodules <repository-url>
+cd wuji_retargeting
+pip install -r requirements.txt
+pip install -e .
+```
+
+**注意**: 需要通过 conda 安装 `pinocchio`（不要用 pip）:
+```bash
+conda install -c conda-forge pinocchio
+```
+
+### 故障排除: pinocchio 安装问题
+
+如果从 PyPI 镜像源安装 `pinocchio` 遇到问题，请固定以下版本并使用官方源：
+
+```bash
+pip install pinocchio==3.8.0 cmeel==0.89.0 -i https://pypi.org/simple
+```
 
 ## 快速开始
 
+### 仿真
+
 ```bash
-# 克隆仓库（包含子模块）
-git clone --recurse-submodules <repository-url>
-cd wuji_retargeting
-
-# 如果已经克隆但未包含子模块，运行以下命令初始化子模块：
-# git submodule update --init --recursive
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 以可编辑模式安装包（用于开发）
-pip install -e .
-
-# 运行仿真（无需硬件）
 cd example
-python teleop_sim.py
+
+# Vision Pro 实时遥操作
+mjpython teleop_sim.py --input visionpro_real --hand left --ip <your-vision-pro-ip>
+
+# 回放 Vision Pro 录制
+mjpython teleop_sim.py --input input_data_replay --play data/avp1.pkl --hand right --config config/adaptive_analytical_avp.yaml
+
+# 回放输入数据
+mjpython teleop_sim.py --input input_data_replay --play data/manus1.pkl --hand left
 ```
 
-### 子模块说明
+### 真机控制
 
-本项目包含以下子模块：
-- `example/utils/mujoco-sim`: MuJoCo 仿真模型
-
-如果克隆时未使用 `--recurse-submodules`，请运行：
 ```bash
-git submodule update --init --recursive
+cd example
+
+# Vision Pro 实时输入（推荐）
+python teleop_real.py --input visionpro_real --ip <your-vision-pro-ip> --hand right
+
+# 简单运行（默认回放 data/avp1.pkl，右手）
+python teleop_real.py
+
+# 回放输入数据文件
+python teleop_real.py --play data/avp1.pkl --hand right
+
+# Manus 手套实时输入
+python teleop_real.py --input manus_glove --glove-id 0 --hand left --config config/adaptive_analytical_manus.yaml
+
+# 录制输入数据
+python teleop_real.py --input visionpro_real --record
 ```
+
+Linux USB 权限设置:
+```bash
+sudo chmod a+rw /dev/ttyUSB0
+```
+
+## 优化器
+
+| 优化器 | 损失函数 | 梯度 | 求解器 | 速度 |
+|--------|---------|------|--------|------|
+| `AdaptiveOptimizerAnalytical` | Huber | 解析梯度 | NLopt SLSQP | ~650 Hz (manus), ~430 Hz (avp) |
+| `AdaptiveOptimizerQP` | L2 | QP | quadprog | ~700 Hz (manus), ~460 Hz (avp) |
+
+**推荐**: `AdaptiveOptimizerAnalytical` - Huber 损失对异常值更鲁棒。
+
+## 命令参考
+
+### teleop_sim.py
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--config` | `config/adaptive_analytical_manus.yaml` | YAML 配置文件 |
+| `--hand` | `left` | 手的方向 (`left`/`right`) |
+| `--input` | - | 输入类型 (`visionpro_real`/`visionpro_replay`/`input_data_replay`) |
+| `--replay FILE` | - | 回放 Vision Pro 录制（配合 `visionpro_replay` 使用） |
+| `--play FILE` | - | 播放输入数据（配合 `input_data_replay` 使用） |
+| `--ip` | `192.168.50.127` | Vision Pro IP 地址 |
+| `--speed` | `1.0` | 播放速度 |
+| `--no-loop` | - | 禁用循环播放 |
+| `--record` | - | 录制输入数据 |
+| `--output FILE` | - | 录制输出路径 |
+
+### teleop_real.py
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--config` | `config/adaptive_analytical_avp.yaml` | YAML 配置文件 |
+| `--hand` | `right` | 手的方向 (`left`/`right`) |
+| `--input` | - | 输入类型 (`visionpro_real`/`manus_glove`/`input_data_replay`) |
+| `--play FILE` | - | 播放输入数据文件（MediaPipe 格式） |
+| `--ip` | `192.168.50.127` | Vision Pro IP 地址 |
+| `--glove-id` | `0` | Manus 手套 ID |
+| `--speed` | `1.0` | 播放速度 |
+| `--no-loop` | - | 禁用循环播放 |
+| `--record` | - | 录制输入数据 |
+| `--output FILE` | - | 录制输出路径 |
+
+## API
+
+```python
+from wuji_retargeting import Retargeter
+
+retargeter = Retargeter.from_yaml("config/adaptive_analytical_manus.yaml", hand_side="right")
+qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (20,)
+```
+
+## 优化公式
+
+两种优化器求解相同的问题，但使用不同的损失函数:
+
+```
+min_q  L(q) + λ||q - q_prev||²
+s.t.   q_min ≤ q ≤ q_max
+```
+
+其中 `λ` 是 `norm_delta`（速度正则化权重）。
+
+### 自适应混合
+
+```
+L = Σ_i [α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i]
+
+α_i = 1           如果 d_i < d1  (捏合 → 使用 TipDirVec)
+α_i = 0           如果 d_i > d2  (张开 → 使用 FullHandVec)
+α_i = 插值        其他情况
+```
+
+- `d_i`: 拇指到第 i 个手指的指尖距离
+- `d1`, `d2`: 捏合阈值（默认: 2.0cm, 4.0cm）
+
+### AdaptiveOptimizerAnalytical
+
+使用 **Huber 损失** + 手写解析梯度 + NLopt SLSQP:
+
+```
+L_tip_dir_vec = w_pos * Huber(||v_tip - v_tip_ref||) + w_dir * Huber(||d_tip - d_tip_ref||)
+L_full_hand = w_full * Huber(||v_full - v_full_ref||)
+```
+
+### AdaptiveOptimizerQP
+
+使用 **L2 损失** + Gauss-Newton QP 求解器:
+
+```
+L_tip_dir_vec = w_pos * ||v_tip - v_tip_ref||² + w_dir * ||d_tip - d_tip_ref||²
+L_full_hand = w_full * ||v_full - v_full_ref||²
+```
+
+每次迭代线性化并求解 QP:
+```
+min  0.5 * ||J*Δq + r||² + 0.5 * λ||q + Δq - q_prev||²
+s.t. q_min ≤ q + Δq ≤ q_max
+```
+
+## 配置
+
+### 配置文件结构
+
+```yaml
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"  # 或 "AdaptiveOptimizerQP"
+  hand_side: "left"  # 或 "right"
+
+retarget:
+  # Huber 损失阈值（仅 Analytical）
+  huber_delta: 2.0             # 位置 Huber 阈值 (cm)
+  huber_delta_dir: 0.5         # 方向 Huber 阈值
+
+  # 损失权重
+  w_pos: 1.0           # 指尖位置权重
+  w_dir: 10.0          # 指尖方向权重
+  w_full_hand: 1.0     # 全手权重
+
+  # 正则化
+  norm_delta: 0.04     # 速度正则化权重
+
+  # QP 求解器设置（仅 QP）
+  qp_max_iters: 10     # 最大 Gauss-Newton 迭代次数
+  qp_tol: 1e-4         # 收敛容差
+
+  # 缩放
+  scaling: 1.0         # 全局 MediaPipe 缩放
+
+  # 每个手指的分段缩放 [PIP, DIP, TIP]
+  segment_scaling:
+    thumb:  [1.0, 1.0, 1.0]
+    index:  [1.0, 1.03, 1.05]
+    middle: [1.0, 1.0, 1.0]
+    ring:   [1.0, 1.0, 1.0]
+    pinky:  [1.05, 1.15, 1.15]
+
+  # 捏合阈值 (cm)
+  pinch_thresholds:
+    index:  { d1: 2.0, d2: 4.0 }
+    middle: { d1: 2.0, d2: 4.0 }
+    ring:   { d1: 2.0, d2: 4.0 }
+    pinky:  { d1: 2.0, d2: 4.0 }
+
+  # MediaPipe 旋转 (度)
+  mediapipe_rotation:
+    x: 0.0   # 横滚
+    y: 0.0   # 俯仰
+    z: 0.0   # 偏航
+
+  # 低通滤波器 (0~1, 越小越平滑)
+  lp_alpha: 0.4
+```
+
+### 参数参考
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `huber_delta` | `2.0` | 位置 Huber 阈值 (cm) |
+| `huber_delta_dir` | `0.5` | 方向 Huber 阈值 |
+| `w_pos` | `1.0` | 指尖位置损失权重 |
+| `w_dir` | `10.0` | 指尖方向损失权重 |
+| `w_full_hand` | `1.0` | 全手损失权重 |
+| `norm_delta` | `0.04` | 速度正则化权重 |
+| `qp_max_iters` | `10` | 最大 Gauss-Newton 迭代次数（仅 QP） |
+| `qp_tol` | `1e-4` | 收敛容差（仅 QP） |
+| `scaling` | `1.0` | 全局 MediaPipe 缩放 |
+| `segment_scaling` | - | 每个手指缩放 `{thumb: [a,b,c], ...}` |
+| `pinch_thresholds` | - | `{finger: {d1: val, d2: val}, ...}` (cm) |
+| `mediapipe_rotation` | `{x:0, y:0, z:0}` | MediaPipe 旋转 (度) |
+| `lp_alpha` | `0.4` | 低通滤波器系数 |
+
+### 配置文件
+
+| 配置文件 | 优化器 | 数据源 |
+|---------|--------|--------|
+| `adaptive_analytical_manus.yaml` | Analytical (Huber) | Manus 手套 |
+| `adaptive_analytical_avp.yaml` | Analytical (Huber) | Vision Pro |
+| `adaptive_qp_manus.yaml` | QP (L2) | Manus 手套 |
+| `adaptive_qp_avp.yaml` | QP (L2) | Vision Pro |
 
 ## 项目结构
 
 ```
 wuji_retargeting/
+├── wuji_retargeting/       # 核心包
+│   ├── retarget.py         # Retargeter 接口
+│   ├── opt/                # 优化器包
+│   │   ├── base.py         # BaseOptimizer, TimingStats, LPFilter
+│   │   ├── adaptive_analytical.py  # AdaptiveOptimizerAnalytical
+│   │   └── adaptive_qp.py  # AdaptiveOptimizerQP
+│   ├── robot.py            # Pinocchio 运动学
+│   └── mediapipe.py        # 坐标变换
 ├── example/
-│   ├── teleop_real.py      # 真实硬件控制
-│   ├── teleop_sim.py        # MuJoCo 仿真
-│   ├── input_devices/       # Vision Pro 输入层
-│   │   ├── base.py          # 输入设备基础接口
-│   │   ├── visionpro.py     # Vision Pro 实时输入
-│   │   └── visionpro_replay.py  # Vision Pro 回放输入
-│   ├── data/                # 录制数据目录
-│   └── utils/               # 工具函数
-│       ├── avp_utils.py      # Apple Vision Pro 工具函数
-│       └── mujoco-sim/       # MuJoCo 仿真模型
-├── wuji_retargeting/        # 核心重定向包
-│   ├── __init__.py          # 包导出
-│   ├── retarget.py          # 高级重定向接口
-│   ├── opt.py               # DexPilot 优化器
-│   ├── robot.py             # 机器人运动学封装
-│   ├── mediapipe.py         # MediaPipe 格式转换
-│   ├── urdf/                # URDF 模型（left.urdf, right.urdf）
-│   └── meshes/              # URDF 模型使用的 3D 网格文件
-├── requirements.txt         # Python 依赖
-├── pyproject.toml          # 包配置
-└── README.md               # 本文件
+│   ├── teleop_sim.py       # MuJoCo 仿真
+│   ├── teleop_real.py      # 硬件控制
+│   ├── input_devices/      # 输入设备驱动
+│   │   ├── base.py         # InputDeviceBase 基类
+│   │   ├── visionpro.py    # VisionPro 实时输入
+│   │   ├── visionpro_replay.py  # VisionPro 录制回放
+│   │   ├── input_data_replay.py # 输入数据回放
+│   │   └── manus_glove.py  # Manus 手套输入
+│   ├── config/             # YAML 配置文件
+│   └── data/               # 录制数据
+└── requirements.txt
 ```
-
-## 使用方法
-
-### 仿真模式（无需硬件）
-
-```bash
-cd example
-python teleop_sim.py
-```
-
-编辑 `teleop_sim.py` 配置：
-- `hand_side`: "right" | "left"
-- `input_device_type`: "visionpro_real" | "visionpro_replay"
-- `visionpro_record_path`: 录制文件路径
-
-### 真实硬件
-
-```bash
-cd example
-python teleop_real.py
-```
-
-首次在 Linux 上运行前，需要授予 WujiHand 控制器的 USB 访问权限：
-
-```bash
-# 临时（重启后失效）
-sudo chmod a+rw /dev/ttyUSB0
-
-# 可选：持久访问
-sudo usermod -a -G dialout $USER
-# 然后需要注销/重新登录
-
-# 可选：udev 规则（替代手动 chmod）
-echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="0483", MODE="0666"' |
-sudo tee /etc/udev/rules.d/95-wujihand.rules &&
-sudo udevadm control --reload-rules &&
-sudo udevadm trigger
-```
-
-编辑 `teleop_real.py` 配置：
-- `hand_side`: "right" | "left"
-- `input_device_type`: "visionpro_real" | "visionpro_replay"
-- 主机只接入一个真实手时不需要序列号（示例只支持单手）
-
-## 输入设备
-
-所有输入设备共享一套轻量 API，`teleop_*` 脚本可以在不同数据源之间切换而无需调整代码。
-
-### 接口
-
-- `get_fingers_data() -> dict` 返回 `{"left_fingers": np.ndarray, "right_fingers": np.ndarray}`
-- `cleanup()` 释放资源并完成任何录制（如果有）
-
-要接入新设备，请继承 `InputDeviceBase`，实现以上方法，并在 `example/input_devices/__init__.py` 中导出类。
-
-### VisionPro（实时跟踪）
-
-```python
-from example.input_devices import VisionPro
-
-device = VisionPro(
-    ip="192.168.50.127"    # Vision Pro 设备 IP
-)
-
-data = device.get_fingers_data()
-device.cleanup()
-```
-
-- Vision Pro 与主机需在同一局域网
-- 启动连接前，请在 Vision Pro 上运行 `tracking_streamer`
-- 详细部署流程见 [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop)
-
-### VisionProReplay（录制回放）
-
-```python
-from example.input_devices import VisionProReplay
-
-device = VisionProReplay(
-    record_path="record_example.pkl",  # 默认在 example/data/ 中查找
-    playback_speed=0.7  # 可选：回放速度倍数
-)
-
-data = device.get_fingers_data()
-device.cleanup()
-```
-
-- 默认录制文件：`example/data/record_example.pkl`
-- 播放到末尾时自动循环
-- 适用于仿真演示或离线调试
-
-## 依赖
-
-- `wujihandpy`: WujiHand 控制库
-- `avp_stream`: Vision Pro 数据流
-- `mujoco`: 物理仿真（仿真模式需要）
-- 完整列表见 `requirements.txt`
-
-## 注意事项
-
-- Vision Pro 需在同一网络并运行 `tracking_streamer`
-- MuJoCo 模型位于 `example/utils/mujoco-sim/model/`
-- Vision Pro 设置请参考 [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop)
-
-## 致谢
-
-本项目基于以下研究和开源项目构建：
-
-- **DexPilot**: 重定向算法基于 T. Chen 等人在论文 ["DexPilot: Vision Based Teleoperation of Dexterous Robotic Hand-Arm System"](https://arxiv.org/abs/1910.03135) 中提出的 DexPilot 方法。优化器实现将原始的四指手算法适配为支持五指手。
-
-- **DexRetargeting**: 本项目遵循 DexRetargeting 框架进行灵巧手姿态重定向，提供灵活的关节顺序处理和模块化的优化器设计。
-
-- **VisionProTeleop**: Vision Pro 手部跟踪集成基于 Improbable AI 的 [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) 项目。
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+MIT

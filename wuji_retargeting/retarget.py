@@ -1,127 +1,215 @@
-"""High-level retargeting interface for Wuji Hand using DexPilot algorithm."""
+"""Unified retargeting interface for Wuji Hand.
+
+Provides a high-level interface that handles:
+- MediaPipe coordinate transformation
+- Optional rotation adjustment
+- Optimizer selection (TipDirVec/FullHandVec/Adaptive)
+- Low-pass filtering
+
+Usage:
+    retargeter = Retargeter.from_yaml("config/adaptive_manus.yaml", hand_side="right")
+    qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (20,)
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional, Tuple
 
 import numpy as np
+import yaml
 
-from .robot import RobotWrapper
-from .opt import DexPilotOptimizer, LPFilter
-
-
-# Package root for URDF path resolution
-_THIS_FILE = Path(__file__).resolve()
-_PACKAGE_ROOT = _THIS_FILE.parent
-
-# Wuji Hand fixed configuration
-WUJI_WRIST_LINK_NAME = "palm_link"
-WUJI_FINGER_TIP_LINK_NAMES = [
-    "finger1_tip_link",
-    "finger2_tip_link",
-    "finger3_tip_link",
-    "finger4_tip_link",
-    "finger5_tip_link",
-]
-WUJI_FINGER_TIP_SCALING = [1.0, 1.1, 1.0, 1.2, 1.3]  # Default scaling for thumb to pinky
-LOW_PASS_ALPHA = 0.2  # Low-pass filter alpha (smaller = smoother but more latency)
+from .opt import BaseOptimizer, LPFilter
+from .mediapipe import apply_mediapipe_transformations
 
 
-@dataclass
-class RetargetingResult:
-    """Retargeting result containing robot joint positions and intermediate data."""
-    robot_qpos: np.ndarray      # Robot joint positions (20,)
-    mediapipe_pose: np.ndarray  # MediaPipe format hand pose (21, 3)
-    reference: np.ndarray       # Reference vectors used in optimization
+class Retargeter:
+    """Unified retargeting interface for Wuji Hand.
 
+    Encapsulates the complete retargeting pipeline:
+    1. MediaPipe coordinate transformation (raw -> wrist frame)
+    2. Optional rotation adjustment (configured via mediapipe_rotation)
+    3. IK optimization (TipDirVec/FullHandVec/Adaptive)
+    4. Low-pass filtering for smooth output
 
-class WujiHandRetargeter:
-    """Retargeter for Wuji Hand using DexPilot algorithm."""
-    
-    def __init__(self, hand_side: str = "right"):
-        """
-        Initialize retargeter for specified hand.
-        
+    Attributes:
+        optimizer: The underlying optimizer instance
+        lp_filter: Low-pass filter for smoothing
+        hand_side: 'left' or 'right'
+    """
+
+    def __init__(self, config: dict, hand_side: str = "right"):
+        """Initialize retargeter.
+
         Args:
-            hand_side: "right" or "left"
+            config: Configuration dict (from YAML)
+            hand_side: 'left' or 'right'
         """
+        self.config = config
         self.hand_side = hand_side.lower()
-        if self.hand_side not in ["right", "left"]:
-            raise ValueError(f"hand_side must be 'right' or 'left', got {hand_side}")
-        
-        # Build URDF path (from package directory)
-        urdf_path = (_PACKAGE_ROOT / f"urdf/{self.hand_side}.urdf").resolve()
-        if not urdf_path.exists():
-            raise ValueError(f"URDF path {urdf_path} does not exist")
-        
-        # Load robot model
-        robot = RobotWrapper(str(urdf_path))
-        
-        # Build optimizer with Wuji Hand hardcoded configuration
-        self.optimizer = DexPilotOptimizer(
-            robot,
-            robot.dof_joint_names,
-            finger_tip_link_names=WUJI_FINGER_TIP_LINK_NAMES,
-            wrist_link_name=WUJI_WRIST_LINK_NAME,
-            finger_scaling=WUJI_FINGER_TIP_SCALING,
-        )
-        
-        # Joint limits (always enabled for Wuji Hand)
-        joint_limits = robot.joint_limits[self.optimizer.idx_pin2target]
-        self.optimizer.set_joint_limit(joint_limits)
-        self.joint_limits = joint_limits
-        
-        # Store optimizer and filter
-        self.filter = LPFilter(LOW_PASS_ALPHA)
-        
-        # Initialize last joint positions for warm start
-        self.last_qpos = joint_limits.mean(1).astype(np.float32)
-    
-    def retarget(self, mediapipe_pose: np.ndarray) -> RetargetingResult:
-        """
-        Retarget MediaPipe format hand pose to Wuji Hand joint positions.
-        
+
+        if self.hand_side not in ['left', 'right']:
+            raise ValueError(f"hand_side must be 'left' or 'right', got {hand_side}")
+
+        # Ensure hand_side in config
+        if 'optimizer' not in config:
+            config['optimizer'] = {}
+        config['optimizer']['hand_side'] = self.hand_side
+
+        # Create optimizer
+        self.optimizer = BaseOptimizer.from_config(config)
+
+        # Create low-pass filter
+        retarget_config = config.get('retarget', {})
+        lp_alpha = retarget_config.get('lp_alpha', 0.2)
+        self.lp_filter = LPFilter(lp_alpha)
+
+        # Rotation adjustment
+        self.rotation_xyz = retarget_config.get('mediapipe_rotation', {})
+
+    @classmethod
+    def from_yaml(cls, yaml_path: str, hand_side: str = "right") -> "Retargeter":
+        """Create retargeter from YAML configuration file.
+
         Args:
-            mediapipe_pose: MediaPipe format hand pose (21, 3) - hand landmarks in 3D
-            
+            yaml_path: Path to YAML configuration file
+            hand_side: 'left' or 'right'
+
         Returns:
-            RetargetingResult with robot_qpos, mediapipe_pose, and reference
+            Retargeter instance
         """
-        mediapipe_pose = np.asarray(mediapipe_pose, dtype=np.float64)
-        if mediapipe_pose.shape != (21, 3):
-            raise ValueError(f"Expected mediapipe_pose shape (21, 3), got {mediapipe_pose.shape}")
-        
-        # Compute reference vectors (task - origin)
-        indices = self.optimizer.target_link_human_indices
-        reference = mediapipe_pose[indices[1], :] - mediapipe_pose[indices[0], :]
-        
-        # Run retargeting optimization
-        robot_qpos = self._retarget_optimization(ref_value=reference)
-        
-        return RetargetingResult(
-            robot_qpos=robot_qpos,
-            mediapipe_pose=mediapipe_pose,
-            reference=reference,
-        )
-    
-    def _retarget_optimization(self, ref_value: np.ndarray) -> np.ndarray:
-        """Internal method to run optimization and filtering."""
-        qpos = self.optimizer.retarget(
-            ref_value=ref_value.astype(np.float32),
-            last_qpos=np.clip(
-                self.last_qpos, self.joint_limits[:, 0], self.joint_limits[:, 1]
-            ),
-        )
-        self.last_qpos = qpos
-        
-        # Apply low-pass filter
-        robot_qpos = self.filter.next(qpos)
-        return robot_qpos
+        with open(yaml_path, 'r') as f:
+            config = yaml.safe_load(f)
+        return cls(config, hand_side)
+
+    @classmethod
+    def from_config(cls, config: dict, hand_side: str = "right") -> "Retargeter":
+        """Create retargeter from configuration dict.
+
+        Args:
+            config: Configuration dict
+            hand_side: 'left' or 'right'
+
+        Returns:
+            Retargeter instance
+        """
+        return cls(config, hand_side)
+
+    def retarget(
+        self,
+        raw_keypoints: np.ndarray,
+        apply_filter: bool = True,
+    ) -> np.ndarray:
+        """Retarget raw MediaPipe keypoints to joint angles.
+
+        Args:
+            raw_keypoints: (21, 3) raw MediaPipe keypoints
+            apply_filter: Whether to apply low-pass filter
+
+        Returns:
+            qpos: (20,) joint angles
+        """
+        # Apply coordinate transformation
+        mediapipe_kp = apply_mediapipe_transformations(raw_keypoints, self.hand_side)
+
+        # Apply rotation adjustment if configured
+        if self.rotation_xyz:
+            mediapipe_kp = self._apply_rotation(mediapipe_kp)
+
+        # Solve IK
+        qpos = self.optimizer.solve(mediapipe_kp)
+
+        # Apply filter
+        if apply_filter:
+            qpos = self.lp_filter.next(qpos)
+
+        return qpos
+
+    def retarget_verbose(
+        self,
+        raw_keypoints: np.ndarray,
+        apply_filter: bool = True,
+    ) -> Tuple[np.ndarray, dict]:
+        """Retarget with verbose output for visualization.
+
+        Args:
+            raw_keypoints: (21, 3) raw MediaPipe keypoints
+            apply_filter: Whether to apply low-pass filter
+
+        Returns:
+            Tuple of (qpos, verbose_dict) where verbose_dict contains:
+                - mediapipe_kp: Transformed keypoints
+                - qpos_unfiltered: Joint angles before filtering
+                - qpos: Final joint angles
+                - cost: Optimization cost
+                - pinch_alphas: (AdaptiveOptimizer only) alpha values
+        """
+        # Apply coordinate transformation
+        mediapipe_kp = apply_mediapipe_transformations(raw_keypoints, self.hand_side)
+
+        # Apply rotation adjustment if configured
+        if self.rotation_xyz:
+            mediapipe_kp = self._apply_rotation(mediapipe_kp)
+
+        # Solve IK
+        qpos = self.optimizer.solve(mediapipe_kp)
+
+        # Apply filter
+        if apply_filter:
+            filtered_qpos = self.lp_filter.next(qpos)
+        else:
+            filtered_qpos = qpos
+
+        # Build verbose dict
+        verbose_dict = {
+            'mediapipe_kp': mediapipe_kp.copy(),
+            'qpos_unfiltered': qpos.copy(),
+            'qpos': filtered_qpos.copy(),
+            'cost': self.optimizer.compute_cost(qpos, mediapipe_kp),
+        }
+
+        # Add optimizer-specific data
+        if hasattr(self.optimizer, '_compute_pinch_alpha'):
+            verbose_dict['pinch_alphas'] = self.optimizer._compute_pinch_alpha(mediapipe_kp)
+
+        return filtered_qpos, verbose_dict
+
+    def _apply_rotation(self, keypoints: np.ndarray) -> np.ndarray:
+        """Apply rotation adjustment to keypoints.
+
+        Uses extrinsic XYZ Euler angles (rotations around fixed axes).
+
+        Args:
+            keypoints: (21, 3) keypoints in wrist frame
+
+        Returns:
+            Rotated keypoints
+        """
+        from scipy.spatial.transform import Rotation
+
+        x_deg = self.rotation_xyz.get('x', 0.0)
+        y_deg = self.rotation_xyz.get('y', 0.0)
+        z_deg = self.rotation_xyz.get('z', 0.0)
+
+        if x_deg == 0 and y_deg == 0 and z_deg == 0:
+            return keypoints
+
+        rot = Rotation.from_euler('xyz', [x_deg, y_deg, z_deg], degrees=True)
+        return keypoints @ rot.as_matrix().T
+
+    def reset_filter(self):
+        """Reset low-pass filter state."""
+        self.lp_filter.reset()
+
+    def reset(self):
+        """Reset all state (filter and optimizer)."""
+        self.lp_filter.reset()
+        self.optimizer.last_qpos = None
+
+    @property
+    def num_joints(self) -> int:
+        """Number of joint angles."""
+        return self.optimizer.num_joints
 
 
-__all__ = [
-    "WujiHandRetargeter",
-    "RetargetingResult",
-]
-
+__all__ = ["Retargeter"]

@@ -1,0 +1,50 @@
+# AdaptiveOptimizerAnalytical Configuration for Manus data
+# Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
+# Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
+# Uses Huber loss + analytical gradients + NLopt SLSQP
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+
+retarget:
+  # Huber loss thresholds
+  huber_delta: 2.0             # Position Huber threshold (cm)
+  huber_delta_dir: 0.5         # Direction Huber threshold
+
+  # Regularization
+  norm_delta: 0.04             # Velocity regularization weight
+
+  # TipDirVec parameters
+  w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
+  w_dir: 10.0                  # Tip direction weight (link4 → tip vectors)
+  scaling: 1.0                 # Global MediaPipe scaling parameter
+  project_tip_dir: false       # Whether to project tip direction
+
+  # FullHandVec parameters
+  w_full_hand: 1.0             # Full hand vec weight
+  segment_scaling:
+    thumb:  [0.98, 0.95, 0.95]
+    index:  [0.9, 0.95, 0.98]
+    middle: [0.9, 0.9, 0.9]
+    ring:   [0.9, 0.93, 0.93]
+    pinky:  [0.95, 1.05, 1.1]
+
+  # Pinch distance thresholds (cm) for each finger
+  # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
+  pinch_thresholds:
+    index:  { d1: 2.0, d2: 4.0 }
+    middle: { d1: 2.0, d2: 4.0 }
+    ring:   { d1: 2.0, d2: 4.0 }
+    pinky:  { d1: 2.0, d2: 4.0 }
+
+  # MediaPipe rotation adjustment (degrees)
+  mediapipe_rotation:
+    x: 0.0
+    y: 0.0
+    z: 15.0
+
+render:
+  camera:
+    azimuth: 135
+    elevation: -20
+    distance: 0.5

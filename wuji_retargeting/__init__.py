@@ -1,20 +1,25 @@
-"""
-Retargeting Wuji Module
+"""Wuji Hand Retargeting Module.
 
-This module provides retargeting utilities for Wuji hand, including:
-- DexPilot retargeting with MediaPipe format conversion
+Provides hand pose retargeting from MediaPipe format to Wuji Hand joint angles.
+
+Main classes:
+- Retargeter: High-level unified interface (recommended)
+- BaseOptimizer: Low-level optimizer access
+
+Example:
+    from wuji_retargeting import Retargeter
+
+    retargeter = Retargeter.from_yaml("config/adaptive_manus.yaml", hand_side="right")
+    qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (20,)
 """
 
-from .retarget import (
-    WujiHandRetargeter,
-    RetargetingResult,
-)
-from .mediapipe import (
-    apply_mediapipe_transformations,
-)
+from .retarget import Retargeter
+from .opt import BaseOptimizer, LPFilter
+from .mediapipe import apply_mediapipe_transformations
 
 __all__ = [
-    'WujiHandRetargeter',
-    'RetargetingResult',
-    'apply_mediapipe_transformations',
+    "Retargeter",
+    "BaseOptimizer",
+    "LPFilter",
+    "apply_mediapipe_transformations",
 ]
