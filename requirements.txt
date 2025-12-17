@@ -1,0 +1,9 @@
+numpy>=1.21.0
+wujihandpy
+avp_stream
+mujoco
+pin==3.8.0
+cmeel==0.89.0
+autograd
+nlopt
+quadprog
