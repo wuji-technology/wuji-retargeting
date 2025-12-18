@@ -6,7 +6,7 @@ Hand pose retargeting system for WujiHand using Wuji Retargeting algorithm.
 
 ## Demo
 
-https://vimeo.com/1136862746
+https://github.com/user-attachments/assets/4e58e677-421d-40a0-9860-cc80b4a4b17c
 
 ## Requirements
 
