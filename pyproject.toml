@@ -11,10 +11,9 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
     "numpy>=1.21.0",
-    "autograd",
     "nlopt",
     "pin>=3.8.0",
-    "cmeel>=0.89.0",
+    "pyyaml",
 ]
 
 [tool.setuptools]

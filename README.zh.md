@@ -21,12 +21,18 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### 故障排除: pinocchio 安装问题
+### 故障排除
 
-如果从 PyPI 镜像源安装 `pinocchio` 遇到问题，请固定以下版本并使用官方源：
+**pinocchio 安装问题**：如果从 PyPI 镜像源安装遇到问题，请使用官方源：
 
 ```bash
-pip install pin==3.8.0 cmeel==0.89.0 -i https://pypi.org/simple
+pip install pin==3.8.0 -i https://pypi.org/simple
+```
+
+**macOS MuJoCo 窗口**：仿真脚本需使用 `mjpython` 代替 `python`：
+
+```bash
+mjpython teleop_sim.py --play data/avp1.pkl --hand left
 ```
 
 ## 快速开始
@@ -37,10 +43,10 @@ pip install pin==3.8.0 cmeel==0.89.0 -i https://pypi.org/simple
 cd example
 
 # 回放 MediaPipe 录制（默认）
-mjpython teleop_sim.py --play data/avp1.pkl --hand left
+python teleop_sim.py --play data/avp1.pkl --hand left
 
 # Vision Pro 实时遥操作
-mjpython teleop_sim.py --input visionpro --ip <your-vision-pro-ip> --hand left
+python teleop_sim.py --input visionpro --ip <your-vision-pro-ip> --hand left
 ```
 
 ### 真机控制
@@ -219,6 +225,20 @@ wuji_retargeting/
 │   ├── data/               # 录制数据
 │   └── utils/mujoco-sim/   # MuJoCo 模型子模块
 └── requirements.txt
+```
+
+## 引用
+
+如果您觉得本项目有用，请考虑引用：
+
+```bibtex
+@software{wuji2025retargeting,
+  title={WujiHand Retargeting},
+  author={Guanqi He and Wentao Zhang},
+  year={2025},
+  url={https://github.com/Wuji-Technology-Co-Ltd/wuji_retargeting},
+  note={* Equal contribution}
+}
 ```
 
 ## 许可证

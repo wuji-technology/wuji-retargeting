@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import autograd.numpy as anp
 import nlopt
 import numpy as np
 import yaml
@@ -116,26 +115,8 @@ M_TO_CM = 100.0
 CM_TO_M = 0.01
 
 
-def huber_loss(x: anp.ndarray, delta: float = 2.0) -> anp.ndarray:
-    """Huber loss function (smooth L1 loss).
-
-    Args:
-        x: Input values
-        delta: Threshold for switching between quadratic and linear
-
-    Returns:
-        Huber loss values
-    """
-    abs_x = anp.abs(x)
-    return anp.where(
-        abs_x <= delta,
-        0.5 * x ** 2,
-        delta * (abs_x - 0.5 * delta)
-    )
-
-
 def huber_loss_np(x: np.ndarray, delta: float = 2.0) -> np.ndarray:
-    """Huber loss function (numpy version for analytical gradient)."""
+    """Huber loss function (smooth L1 loss)."""
     abs_x = np.abs(x)
     return np.where(
         abs_x <= delta,
