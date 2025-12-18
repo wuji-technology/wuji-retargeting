@@ -17,6 +17,7 @@ https://github.com/user-attachments/assets/4e58e677-421d-40a0-9860-cc80b4a4b17c
 ```bash
 git clone --recurse-submodules <repository-url>
 cd wuji_retargeting
+git lfs pull
 pip install -r requirements.txt
 pip install -e .
 ```
