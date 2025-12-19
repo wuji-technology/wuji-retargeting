@@ -17,25 +17,25 @@ retarget:
   # TipDirVec parameters
   w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
   w_dir: 10.0                  # Tip direction weight (link4 → tip vectors)
-  scaling: 1.0                 # Global MediaPipe scaling parameter
+  scaling: 1.15                # Global MediaPipe scaling parameter (Increased for smaller hands)
   project_tip_dir: false       # Whether to project tip direction
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
   segment_scaling:
-    thumb:  [1.0, 1.0, 1.0]
-    index:  [1.0, 1.03, 1.05]
-    middle: [1.0, 1.0, 1.0]
-    ring:   [1.0, 1.0, 1.0]
+    thumb:  [1.1, 1.1, 1.1]    # Scaled up for better pinch reach
+    index:  [1.0, 1.05, 1.05]
+    middle: [1.0, 1.05, 1.05]
+    ring:   [1.0, 1.03, 1.03]
     pinky:  [1.05, 1.15, 1.15]
 
   # Pinch distance thresholds (cm) for each finger
   # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
   pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
-    pinky:  { d1: 2.0, d2: 4.0 }
+    index:  { d1: 2.5, d2: 4.0 } # Increased d1 for easier pinch activation
+    middle: { d1: 2.5, d2: 4.0 }
+    ring:   { d1: 2.5, d2: 4.0 }
+    pinky:  { d1: 2.5, d2: 4.0 }
 
   # MediaPipe rotation adjustment (degrees)
   mediapipe_rotation:
