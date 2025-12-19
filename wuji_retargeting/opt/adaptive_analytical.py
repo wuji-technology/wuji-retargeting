@@ -38,10 +38,24 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.w_full_hand = retarget_config.get('w_full_hand', 1.0)
         segment_scaling_config = retarget_config.get('segment_scaling', {})
         finger_names = ['thumb', 'index', 'middle', 'ring', 'pinky']
+        # Support both 3-param (legacy) and 4-param (new) formats
+        # 4-param format: [MCP, PIP, DIP, TIP] - we use PIP, DIP, TIP for optimization
+        # 3-param format: [PIP, DIP, TIP] - direct use
+        # For optimization: (5, 3) - PIP, DIP, TIP
         self.segment_scaling = np.ones((5, 3), dtype=np.float64)
+        # For visualization: (5, 4) - MCP, PIP, DIP, TIP (full version)
+        self.segment_scaling_full = np.ones((5, 4), dtype=np.float64)
         for i, finger_name in enumerate(finger_names):
             if finger_name in segment_scaling_config:
-                self.segment_scaling[i] = np.array(segment_scaling_config[finger_name])
+                scales = np.array(segment_scaling_config[finger_name])
+                if len(scales) == 4:
+                    # 4-param format
+                    self.segment_scaling_full[i] = scales
+                    self.segment_scaling[i] = scales[1:4]  # PIP, DIP, TIP for optimization
+                else:
+                    # 3-param format (legacy): assume MCP scale = 1.0
+                    self.segment_scaling_full[i] = np.array([1.0, scales[0], scales[1], scales[2]])
+                    self.segment_scaling[i] = scales
 
         # Pinch thresholds
         pinch_config = retarget_config.get('pinch_thresholds', {})
