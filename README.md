@@ -237,7 +237,7 @@ If you find this project useful, please consider citing:
   title={WujiHand Retargeting},
   author={Guanqi He and Wentao Zhang},
   year={2025},
-  url={https://github.com/Wuji-Technology-Co-Ltd/wuji_retargeting},
+  url={https://github.com/wuji-technology/wuji_retargeting},
   note={* Equal contribution}
 }
 ```
