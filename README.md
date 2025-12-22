@@ -242,6 +242,15 @@ If you find this project useful, please consider citing:
 }
 ```
 
+## Acknowledgement
+
+This project is built upon several excellent open-source projects:
+
+- [MuJoCo](https://mujoco.org/) for physics simulation
+- [dex-retargeting](https://github.com/dexsuite/dex-retargeting) for hand retargeting algorithms
+- [DexPilot](https://arxiv.org/abs/1910.03135) for vision-based teleoperation insights
+- [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) for Apple Vision Pro streaming
+
 ## License
 
 MIT

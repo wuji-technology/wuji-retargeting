@@ -242,6 +242,15 @@ wuji_retargeting/
 }
 ```
 
+## 致谢
+
+本项目基于以下优秀的开源项目构建：
+
+- [MuJoCo](https://mujoco.org/) 物理仿真平台
+- [dex-retargeting](https://github.com/dexsuite/dex-retargeting) 手部重定向算法
+- [DexPilot](https://arxiv.org/abs/1910.03135) 基于视觉的遥操作
+- [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) Apple Vision Pro 数据流
+
 ## 许可证
 
 MIT
