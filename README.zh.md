@@ -140,6 +140,8 @@ L = Σ_i [α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i]
 
 ## 配置
 
+**注意**：默认配置针对 Apple Vision Pro 调优。使用其他输入设备时，可能需要根据手型调整 `scaling` 和 `segment_scaling` 等参数。
+
 ### 配置文件结构
 
 ```yaml
@@ -241,15 +243,6 @@ wuji_retargeting/
   note={* Equal contribution}
 }
 ```
-
-## 致谢
-
-本项目基于以下优秀的开源项目构建：
-
-- [MuJoCo](https://mujoco.org/) 物理仿真平台
-- [dex-retargeting](https://github.com/dexsuite/dex-retargeting) 手部重定向算法
-- [DexPilot](https://arxiv.org/abs/1910.03135) 基于视觉的遥操作
-- [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) Apple Vision Pro 数据流
 
 ## 许可证
 

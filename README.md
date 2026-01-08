@@ -140,6 +140,8 @@ L = Σ_i [α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i]
 
 ## Configuration
 
+**Note**: The default configuration is tuned for Apple Vision Pro. When using other input devices, you may need to adjust `scaling` and `segment_scaling` parameters based on your hand shape.
+
 ### Config File Structure
 
 ```yaml
@@ -241,15 +243,6 @@ If you find this project useful, please consider citing:
   note={* Equal contribution}
 }
 ```
-
-## Acknowledgement
-
-This project is built upon several excellent open-source projects:
-
-- [MuJoCo](https://mujoco.org/) for physics simulation
-- [dex-retargeting](https://github.com/dexsuite/dex-retargeting) for hand retargeting algorithms
-- [DexPilot](https://arxiv.org/abs/1910.03135) for vision-based teleoperation insights
-- [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) for Apple Vision Pro streaming
 
 ## License
 
