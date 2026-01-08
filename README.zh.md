@@ -4,6 +4,28 @@
 
 基于 Wuji Retargeting 算法的 WujiHand 手部姿态重定向系统。
 
+## Apple Vision Pro 配置
+
+使用 Vision Pro 进行实时手部追踪，需要安装来自 [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) 的串流应用：
+
+### 1. 安装 VisionOS 应用
+
+在 Apple Vision Pro 上从 [App Store](https://apps.apple.com/us/app/tracking-streamer/id6478969032) 安装 **Tracking Streamer**。
+
+### 2. 安装 Python 库
+
+```bash
+pip install --upgrade avp_stream
+```
+
+> **注意**：请保持库为最新版本。最新的 App Store 版本要求 `avp_stream >= 2.50.0`。如果 Python 库版本过旧，VisionOS 应用会显示警告。
+
+### 3. 可选：iOS 伴侣应用
+
+在 iPhone/iPad 上从 App Store 安装 **Tracking Manager**，用于管理录制、设置和摄像头校准。
+
+无需额外的网络配置，安装后即可直接使用。
+
 ## 演示
 
 https://github.com/user-attachments/assets/4e58e677-421d-40a0-9860-cc80b4a4b17c
@@ -139,6 +161,8 @@ L = Σ_i [α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i]
 - `d1`, `d2`: 捏合阈值（默认: 2.0cm, 4.0cm）
 
 ## 配置
+
+**注意**：默认配置针对 Apple Vision Pro 调优。使用其他输入设备时，可能需要根据手型调整 `scaling` 和 `segment_scaling` 等参数。
 
 ### 配置文件结构
 

@@ -4,6 +4,28 @@
 
 Hand pose retargeting system for WujiHand using Wuji Retargeting algorithm.
 
+## Apple Vision Pro Setup
+
+To use Vision Pro for real-time hand tracking, you need to install the streaming app from [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop):
+
+### 1. Install VisionOS App
+
+Install **Tracking Streamer** from the [App Store](https://apps.apple.com/us/app/tracking-streamer/id6478969032) on your Apple Vision Pro.
+
+### 2. Install Python Library
+
+```bash
+pip install --upgrade avp_stream
+```
+
+> **Note**: Keep the library updated. The latest App Store version requires `avp_stream >= 2.50.0`. The VisionOS app will display a warning if your Python library is outdated.
+
+### 3. Optional: iOS Companion App
+
+Install **Tracking Manager** from the App Store on your iPhone/iPad for managing recordings, settings, and camera calibration.
+
+No additional network configuration is required. Everything works out of the box after installation.
+
 ## Demo
 
 https://github.com/user-attachments/assets/4e58e677-421d-40a0-9860-cc80b4a4b17c
@@ -139,6 +161,8 @@ L = Σ_i [α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i]
 - `d1`, `d2`: pinch thresholds (default: 2.0cm, 4.0cm)
 
 ## Configuration
+
+**Note**: The default configuration is tuned for Apple Vision Pro. When using other input devices, you may need to adjust `scaling` and `segment_scaling` parameters based on your hand shape.
 
 ### Config File Structure
 
