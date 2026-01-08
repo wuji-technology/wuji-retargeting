@@ -28,7 +28,7 @@ pip install --upgrade avp_stream
 
 ## 演示
 
-https://github.com/user-attachments/assets/4e58e677-421d-40a0-9860-cc80b4a4b17c
+https://github.com/user-attachments/assets/72116289-7a33-4a6b-83ca-fb4d9aaece0d
 
 ## 环境要求
 
