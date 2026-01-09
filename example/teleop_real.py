@@ -69,7 +69,7 @@ def run_teleop(
     hand.write_joint_enabled(True)
     handcontroller = hand.realtime_controller(
         enable_upstream=False,
-        filter=wujihandpy.filter.LowPass(cutoff_freq=3.0)
+        filter=wujihandpy.filter.LowPass(cutoff_freq=5.0)
     )
     time.sleep(0.5)
 
@@ -145,7 +145,6 @@ def run_teleop(
             # Send to hardware
             handcontroller.set_joint_target_position(qpos.reshape(5, 4))
 
-            time.sleep(0.005)
 
     except KeyboardInterrupt:
         print("\nStopping controller...")

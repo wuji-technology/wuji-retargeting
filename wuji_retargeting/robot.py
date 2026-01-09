@@ -118,3 +118,24 @@ class RobotWrapper:
             jacobians.append(J_world_pos)
 
         return np.stack(jacobians, axis=0)
+
+    def compute_fk_batch(self, qpos: npt.NDArray, link_indices: List[int]) -> npt.NDArray:
+        """Batch compute FK positions for multiple links.
+
+        Args:
+            qpos: Joint positions
+            link_indices: List of frame indices
+
+        Returns:
+            positions: (num_links * 3,) flattened positions
+        """
+        qpos = np.asarray(qpos, dtype=np.float64)
+        pin.forwardKinematics(self.model, self.data, qpos)
+        pin.updateFramePlacements(self.model, self.data)
+
+        positions = []
+        for idx in link_indices:
+            pos = self.data.oMf[idx].translation
+            positions.append(pos)
+
+        return np.concatenate(positions)
