@@ -308,4 +308,4 @@ retarget:
 
 ## 联系方式
 
-如有任何问题，请联系 support@wuji.tech。
+如有任何问题，请联系 [support@wuji.tech](mailto:support@wuji.tech)。
