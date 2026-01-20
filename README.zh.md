@@ -1,5 +1,3 @@
-中文 | [English](README.md)
-
 # wuji-retargeting
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
