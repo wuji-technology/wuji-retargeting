@@ -1,5 +1,3 @@
-[中文](README.zh.md) | English
-
 # wuji-retargeting
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -308,4 +306,4 @@ This project is built upon several excellent open-source projects:
 
 ## Contact
 
-For any questions, please contact support@wuji.tech.
+For any questions, please contact [support@wuji.tech](mailto:support@wuji.tech).
