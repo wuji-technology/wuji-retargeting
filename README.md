@@ -1,6 +1,6 @@
 # wuji-retargeting
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/wuji-technology/wuji-retargeting)](https://github.com/wuji-technology/wuji-retargeting/releases)
 
 Hand pose retargeting system for Wuji Hand. High-precision retargeting based on adaptive analytical optimization, supporting Apple Vision Pro hand tracking for real-time teleoperation.
 
