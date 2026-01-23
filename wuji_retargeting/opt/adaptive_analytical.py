@@ -91,7 +91,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         thumb_tip = mediapipe_keypoints[self.MP_TIP_INDICES[0]]
         finger_tips = mediapipe_keypoints[self.MP_TIP_INDICES[1:]]
         distances = np.linalg.norm(finger_tips - thumb_tip, axis=1) * M_TO_CM
-        alphas_4 = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 1.0)
+        alphas_4 = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 0.7)
         alpha_thumb = np.max(alphas_4)
         return np.concatenate([[alpha_thumb], alphas_4])
 
