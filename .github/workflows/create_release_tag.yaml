@@ -1,0 +1,43 @@
+name: Create Release Tag
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  create-tag:
+    name: Create release tag
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Extract version and create tag
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          VERSION="${BRANCH_NAME#release/}"
+
+          echo "Creating tag ${VERSION}..."
+
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          git tag -a "${VERSION}" -m "Release ${VERSION} of wuji-retargeting"
+          git push origin "${VERSION}"
+
+          echo "Tag ${VERSION} created successfully!"
+          echo "This will automatically trigger auto-release.yml"
