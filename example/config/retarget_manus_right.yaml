@@ -1,0 +1,57 @@
+
+# AdaptiveOptimizerAnalytical Configuration for Manus data (RIGHT HAND)
+# Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
+# Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
+# Uses Huber loss + analytical gradients + NLopt SLSQP
+#
+# NOTE: This file is for RIGHT hand only. For LEFT hand, see retarget_manus_left.yaml
+# The only difference is mediapipe_rotation.z: -15.0 (right) vs 15.0 (left)
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+
+retarget:
+  # Huber loss thresholds
+  huber_delta: 2.0             # Position Huber threshold (cm)
+  huber_delta_dir: 0.5         # Direction Huber threshold
+
+  # Regularization
+  norm_delta: 0.04             # Velocity regularization weight
+
+  # TipDirVec parameters
+  w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
+  w_dir: 2.0                   # Tip direction weight (link4 → tip vectors)
+  scaling: 1.0                 # Global MediaPipe scaling parameter
+  project_tip_dir: false       # Whether to project tip direction
+
+  # FullHandVec parameters
+  w_full_hand: 1.0             # Full hand vec weight
+  segment_scaling:
+    thumb:  [0.98, 1, 1]
+    index:  [1.1, 0.989, 1.03]
+    middle: [1.10, 0.96, 0.96]
+    ring:   [1.1, 0.97, 0.99]
+    pinky:  [1.105, 1.15, 1.15]
+
+#  segment_scaling:
+#     thumb:  [0.98,0.98, 1, 1]
+#     index:  [0.845,1.1, 0.989, 1.03]
+#     middle: [0.87,1.10, 0.96, 0.96]
+#     ring:   [0.85,1.1, 0.97, 0.99]
+#     pinky:  [0.8,1.105, 1.15, 1.15]
+
+  # MediaPipe rotation adjustment (degrees)
+  # RIGHT HAND: z = -15.0
+  mediapipe_rotation:
+    x: 0.0
+    y: 0.0
+    z: -15.0
+
+  # Low-pass filter
+  lp_alpha: 0.2
+
+render:
+  camera:
+    azimuth: 135
+    elevation: -20
+    distance: 0.5
