@@ -9,13 +9,16 @@ import pinocchio as pin
 class RobotWrapper:
     """Pinocchio robot wrapper for forward kinematics."""
 
-    def __init__(self, urdf_path: str):
+    def __init__(self, urdf_path: str, hand_side: str = None):
         # Create robot model and data
         self.model: pin.Model = pin.buildModelFromUrdf(urdf_path)
         self.data: pin.Data = self.model.createData()
 
         if self.model.nv != self.model.nq:
             raise NotImplementedError("Cannot handle robot with special joint.")
+
+        # Store hand side for frame name resolution
+        self.hand_side = hand_side.lower() if hand_side else None
 
         # Timing statistics for FK and Jacobian
         self._timing_enabled = False
@@ -70,8 +73,19 @@ class RobotWrapper:
         return np.stack([lower, upper], axis=1)
 
     def get_link_index(self, name: str) -> int:
-        """Get frame index by name."""
-        return self.model.getFrameId(name, pin.BODY)
+        """Get frame index by name, trying both unprefixed and prefixed variants.
+
+        Args:
+            name: Frame name without prefix (e.g., "palm_link", "finger1_tip_link")
+        """
+        for candidate in [name, f"{self.hand_side}_{name}"]:
+            idx = self.model.getFrameId(candidate, pin.BODY)
+            if idx < self.model.nframes:
+                return idx
+        raise RuntimeError(
+            f"Frame '{name}' not found. "
+            f"Available: {[self.model.frames[i].name for i in range(self.model.nframes)]}"
+        )
 
     def compute_forward_kinematics(self, qpos: npt.NDArray):
         """Compute forward kinematics for all links."""
