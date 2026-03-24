@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added MP4 video input device with MediaPipe hand tracking (`video_mediapipe.py`)
+- Added Intel RealSense camera input device with MediaPipe hand tracking (`realsense_mediapipe.py`)
+- Added `InputDeviceBase` abstract base class for input devices (`base.py`)
+- Added video/RealSense config (`adaptive_analytical_video.yaml`)
+- Added `--video`, `--realsense`, `--show-video` CLI flags to teleop scripts
+- Added optional `[realsense]` and `[video]` extras in `pyproject.toml`
+
 ## [0.1.1] - 2026-02-02
 
 ### Changed

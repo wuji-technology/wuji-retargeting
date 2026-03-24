@@ -1,6 +1,6 @@
 [project]
 name = "wuji-retargeting"
-version = "0.1.1"
+version = "0.2.0"
 description = "High-precision hand pose retargeting system for WujiHand"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -10,6 +10,18 @@ dependencies = [
     "nlopt",
     "pin>=3.8.0",
     "pyyaml",
+    "scipy>=1.11.0",
+]
+
+[project.optional-dependencies]
+video = [
+    "mediapipe",
+    "opencv-python",
+]
+realsense = [
+    "mediapipe",
+    "opencv-python",
+    "pyrealsense2",
 ]
 
 [tool.setuptools]

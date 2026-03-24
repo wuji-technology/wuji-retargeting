@@ -1,0 +1,72 @@
+# AdaptiveOptimizerAnalytical Configuration for MP4 video input (MediaPipe)
+# Tuned for monocular video hand tracking via MediaPipe Hands.
+# Key differences from AVP config:
+#   - video_input section for MediaPipe-specific parameters (z_scale, segment correction)
+#   - Adjusted segment_scaling to compensate for monocular depth inaccuracy
+#   - Wider pinch thresholds due to noisier landmark detection
+#   - Higher regularization (norm_delta) for smoother output
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+
+retarget:
+  # Huber loss thresholds
+  huber_delta: 2.0             # Position Huber threshold (cm)
+  huber_delta_dir: 0.5         # Direction Huber threshold
+
+  # Regularization - higher than AVP to smooth out MediaPipe noise
+  norm_delta: 0.06             # Velocity regularization weight
+
+  # TipDirVec parameters
+  w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
+  w_dir: 10.0                  # Tip direction weight (link4 → tip vectors)
+  scaling: 1.0                 # Global MediaPipe scaling parameter
+  project_tip_dir: false       # Whether to project tip direction
+
+  # FullHandVec parameters - use same as AVP config (compensates robot model)
+  w_full_hand: 1.0             # Full hand vec weight
+  segment_scaling:
+    thumb:  [0.97, 1.0, 1.0]
+    index:  [1.0, 1.03, 1.10]
+    middle: [1.0, 1.0, 1.0]
+    ring:   [1.0, 1.0, 1.0]
+    pinky:  [1.05, 1.15, 1.15]
+
+  # Pinch distance thresholds (cm) for each finger
+  # Wider than AVP to account for MediaPipe landmark noise
+  pinch_thresholds:
+    index:  { d1: 2.0, d2: 5.0 }
+    middle: { d1: 2.0, d2: 5.0 }
+    ring:   { d1: 2.0, d2: 5.0 }
+    pinky:  { d1: 2.0, d2: 5.0 }
+
+  # Low-pass filter coefficient (smaller = smoother, more latency)
+  lp_alpha: 0.15
+
+  # MediaPipe rotation adjustment (degrees, extrinsic XYZ Euler)
+  # Compensates for systematic orientation offset in monocular video
+  # vs. stereo AVP data after wrist frame estimation.
+  mediapipe_rotation:
+    x: -5.0
+    y: -5.0
+    z: -15.0
+
+# Video input specific parameters (used by VideoMediaPipe device)
+video_input:
+  # Z-axis depth scale factor.
+  # MediaPipe monocular depth is compressed; this amplifies it.
+  # Typical range: 2.0 - 4.0. Higher = more depth separation.
+  z_scale: 2.5
+
+  # Whether to correct finger segment lengths using anthropometric data.
+  # Compensates for MediaPipe's inaccurate segment proportions.
+  correct_segments: true
+
+  # Reference hand scale: wrist-to-middle-MCP distance (meters)
+  reference_wrist_to_mid_mcp: 0.09
+
+render:
+  camera:
+    azimuth: 135
+    elevation: -20
+    distance: 0.5

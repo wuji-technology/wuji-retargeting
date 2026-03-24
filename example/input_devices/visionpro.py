@@ -25,6 +25,12 @@ class VisionPro:
 
     def get_fingers_data(self) -> dict:
         data = self.streamer.latest
+        if data is None:
+            empty = np.zeros((21, 3), dtype=np.float32)
+            return {
+                "left_fingers": empty.copy(),
+                "right_fingers": empty.copy(),
+            }
         return {
             "left_fingers": convert_vp_to_mediapipe(data["left_fingers"]),
             "right_fingers": convert_vp_to_mediapipe(data["right_fingers"]),

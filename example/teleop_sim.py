@@ -7,6 +7,13 @@ Usage:
     # Replay MediaPipe recording (default)
     mjpython teleop_sim.py --play data/avp1.pkl --hand left
 
+    # MP4 video input with MediaPipe hand detection
+    mjpython teleop_sim.py --video data/right.mp4 --hand right
+    mjpython teleop_sim.py --video data/right.mp4 --hand right --show-video
+
+    # RealSense camera input with MediaPipe hand detection
+    mjpython teleop_sim.py --realsense --hand right
+
     # Live VisionPro input
     mjpython teleop_sim.py --input visionpro --ip <your-vision-pro-ip>
 
@@ -16,6 +23,8 @@ Usage:
 Input device types:
 - visionpro: Live VisionPro input
 - mediapipe_replay: Replay recorded MediaPipe hand tracking data
+- video: MP4 video input with MediaPipe hand detection
+- realsense: RealSense camera input with MediaPipe hand detection
 """
 
 import argparse
@@ -27,6 +36,7 @@ from pathlib import Path
 import mujoco
 import mujoco.viewer
 import numpy as np
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -35,6 +45,14 @@ if str(PROJECT_ROOT) not in sys.path:
 from wuji_retargeting import Retargeter
 from input_devices.visionpro import VisionPro
 from input_devices.mediapipe_replay import MediaPipeReplay
+try:
+    from input_devices.video_mediapipe import VideoMediaPipe
+except ImportError:
+    VideoMediaPipe = None
+try:
+    from input_devices.realsense_mediapipe import RealsenseMediaPipe
+except ImportError:
+    RealsenseMediaPipe = None
 
 
 def run_teleop(
@@ -46,6 +64,8 @@ def run_teleop(
     playback_speed: float = 1.0,
     playback_loop: bool = True,
     enable_recording: bool = False,
+    video_path: str = "",
+    show_video: bool = False,
 ):
     """Run teleoperation with MuJoCo simulation.
 
@@ -58,6 +78,8 @@ def run_teleop(
         playback_speed: Playback speed for replay mode
         playback_loop: Whether to loop replay
         enable_recording: Whether to record raw input data
+        video_path: Path to MP4 video file
+        show_video: Whether to display video with MediaPipe landmarks overlay
     """
     hand_side = hand_side.lower()
     assert hand_side in {"right", "left"}, "hand_side must be 'right' or 'left'"
@@ -90,6 +112,12 @@ def run_teleop(
     viewer.cam.distance = 0.5
     viewer.cam.lookat[:] = [0, 0, 0.05]
 
+    # Load config to get video_input settings if needed
+    config_file = Path(__file__).parent / config_path
+    with open(config_file, "r") as f:
+        full_config = yaml.safe_load(f)
+    video_config = full_config.get("video_input", {})
+
     # Initialize input device
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
@@ -98,17 +126,35 @@ def run_teleop(
             playback_speed=playback_speed,
             loop=playback_loop,
         ),
+        "video": lambda: VideoMediaPipe(
+            video_path=video_path,
+            hand_side=hand_side,
+            playback_speed=playback_speed,
+            loop=playback_loop,
+            video_config=video_config,
+            show_video=show_video,
+        ),
+        "realsense": lambda: RealsenseMediaPipe(
+            hand_side=hand_side,
+            video_config=video_config,
+            show_video=show_video,
+        ),
     }
     if input_device_type not in device_map:
         raise ValueError(f"Unknown input device type: {input_device_type}")
 
     if input_device_type == "mediapipe_replay" and not mediapipe_replay_path:
         raise ValueError("mediapipe_replay_path is required for mediapipe_replay mode")
+    if input_device_type == "video" and not video_path:
+        raise ValueError("video_path is required for video mode")
+    if input_device_type == "video" and VideoMediaPipe is None:
+        raise ImportError("video mode requires mediapipe and opencv-python")
+    if input_device_type == "realsense" and RealsenseMediaPipe is None:
+        raise ImportError("realsense mode requires mediapipe, opencv-python, and pyrealsense2")
 
     input_device = device_map[input_device_type]()
 
     # Initialize retargeter
-    config_file = Path(__file__).parent / config_path
     retargeter = Retargeter.from_yaml(str(config_file), hand_side)
 
     # Disable recording when using replay mode
@@ -176,6 +222,13 @@ def run_teleop(
         print("\nStopping controller...")
     finally:
         viewer.close()
+        for method_name in ("stop", "cleanup", "close"):
+            method = getattr(input_device, method_name, None)
+            if callable(method):
+                try:
+                    method()
+                except Exception:
+                    pass
 
     return input_data_log
 
@@ -188,6 +241,13 @@ def main():
 Examples:
   # Replay MediaPipe recording
   mjpython teleop_sim.py --play data/avp1.pkl --hand left
+
+  # MP4 video input with MediaPipe hand detection
+  mjpython teleop_sim.py --video data/right.mp4 --hand right
+  mjpython teleop_sim.py --video data/right.mp4 --hand right --show-video
+
+  # RealSense camera input with MediaPipe hand detection
+  mjpython teleop_sim.py --realsense --hand right
 
   # Live VisionPro input
   mjpython teleop_sim.py --input visionpro --ip <your-vision-pro-ip>
@@ -205,7 +265,7 @@ Examples:
 
     # Input device options
     parser.add_argument('--input', type=str, default=None,
-                        choices=['visionpro', 'mediapipe_replay'],
+                        choices=['visionpro', 'mediapipe_replay', 'video', 'realsense'],
                         help='Input device type')
 
     # Shortcut options
@@ -227,14 +287,26 @@ Examples:
                         help='Record input data to file')
     parser.add_argument('--output', type=str, default=None, metavar='FILE',
                         help='Output file for recording (default: auto-generated)')
+    parser.add_argument('--video', type=str, default=None, metavar='FILE',
+                        help='Play MP4 video file with MediaPipe hand detection (shortcut for --input video)')
+    parser.add_argument('--realsense', action='store_true',
+                        help='Use RealSense camera with MediaPipe hand detection (shortcut for --input realsense)')
+    parser.add_argument('--show-video', action='store_true',
+                        help='Show video with MediaPipe landmarks overlay (video/realsense mode)')
 
     args = parser.parse_args()
 
     # Determine input device type and paths
     input_device_type = args.input
     mediapipe_replay_path = ""
+    video_path = ""
 
-    if args.play:
+    if args.realsense:
+        input_device_type = "realsense"
+    elif args.video:
+        input_device_type = "video"
+        video_path = args.video
+    elif args.play:
         input_device_type = "mediapipe_replay"
         mediapipe_replay_path = args.play
 
@@ -242,6 +314,10 @@ Examples:
     if input_device_type is None:
         input_device_type = "mediapipe_replay"
         mediapipe_replay_path = "data/avp1.pkl"
+
+    # Auto-switch config for non-AVP input devices
+    if input_device_type in ("realsense", "video") and args.config == 'config/adaptive_analytical_avp.yaml':
+        args.config = 'config/adaptive_analytical_video.yaml'
 
     # Validate paths
     if input_device_type == "mediapipe_replay" and not mediapipe_replay_path:
@@ -257,6 +333,8 @@ Examples:
         playback_speed=args.speed,
         playback_loop=not args.no_loop,
         enable_recording=args.record,
+        video_path=video_path,
+        show_video=args.show_video,
     )
 
     # Save recording if enabled
