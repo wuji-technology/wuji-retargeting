@@ -64,16 +64,28 @@ python teleop_sim.py --play data/avp1.pkl --hand left
 python teleop_real.py --play data/avp1.pkl --hand right
 ```
 
+## Manus Glove Input
+
+This retargeting library is designed as a **pure Python package** and does not introduce ROS2 or other middleware dependencies. Since Manus gloves require the Manus SDK (C++) and ROS2 for data acquisition, Manus input is not directly supported in this repository.
+
+To use Manus gloves as the input device for retargeting, please use the [wuji-hand-teleop](https://github.com/wuji-technology/wuji-hand-teleop) repository, which integrates the full Manus ROS2 driver and retargeting pipeline:
+
+```bash
+ros2 launch wuji_teleop_bringup wuji_teleop_hand.launch.py hand_input:=manus
+```
+
+For more details, refer to the [wuji-hand-teleop documentation](https://github.com/wuji-technology/wuji-hand-teleop).
+
 ## Citation
 
 If you find this project useful, please consider citing:
 
 ```bibtex
-@software{wuji2025retargeting,
+@software{wuji2026retargeting,
   title={WujiHand Retargeting},
   author={Guanqi He and Wentao Zhang},
-  year={2025},
-  url={https://github.com/wuji-technology/wuji_retargeting},
+  year={2026},
+  url={https://github.com/wuji-technology/wuji-retargeting},
   note={* Equal contribution}
 }
 ```
