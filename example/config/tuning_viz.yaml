@@ -1,0 +1,59 @@
+# Tuning Visualization Configuration
+# Controls the appearance and behavior of the tuning viewer.
+# This file configures the VIEWER DISPLAY only - retargeting parameters
+# are in the retarget config (e.g., adaptive_analytical_avp.yaml).
+
+# === Skeleton layer display ===
+skeleton:
+  # Layer 1: Raw MediaPipe input keypoints (orange)
+  mediapipe_input:
+    enabled: true
+    color: [1.0, 0.5, 0.0, 0.6]        # RGBA, 0-1
+    line_color: [1.0, 0.6, 0.2, 0.5]
+    point_size: 0.004                     # Sphere radius (meters)
+    line_width: 0.002                     # Capsule radius (meters)
+
+  # Layer 2: Scaled target keypoints (cyan)
+  scaled_target:
+    enabled: true
+    color: [0.0, 0.8, 0.8, 0.8]
+    line_color: [0.2, 0.8, 1.0, 0.7]
+    point_size: 0.004
+    line_width: 0.002
+
+  # Layer 3: Robot FK keypoints (white)
+  robot_fk:
+    enabled: true
+    color: [1.0, 1.0, 1.0, 0.95]
+    line_color: [1.0, 1.0, 1.0, 0.8]
+    point_size: 0.005
+    line_width: 0.003
+
+  # Draw skeleton connection lines (set false to show only points)
+  draw_lines: true
+
+  # Highlight color for fingers affected by parameter changes
+  highlight_color: [1.0, 0.0, 0.0, 1.0]
+  highlight_duration: 1.0                 # Seconds
+
+# === Robot mesh display ===
+robot_mesh:
+  alpha: 0.3                              # Semi-transparent to not occlude skeletons
+
+# === Camera ===
+camera:
+  azimuth: 135
+  elevation: -20
+  distance: 0.5
+  lookat: [0.0, 0.0, 0.05]
+
+# === HUD (text overlay) ===
+hud:
+  show_params: true                       # Show current parameter values
+  show_frame_info: true                   # Show frame counter
+  show_cost: true                         # Show optimization cost
+  show_pinch_alpha: true                  # Show per-finger pinch alpha
+
+# === Hot reload ===
+hot_reload:
+  poll_interval: 0.5                      # Config file check interval (seconds)

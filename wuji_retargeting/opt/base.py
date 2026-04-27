@@ -277,13 +277,20 @@ class BaseOptimizer(ABC):
             Optimizer instance
         """
         from .adaptive_analytical import AdaptiveOptimizerAnalytical
+        from .vector import VectorOptimizer
 
+        registry = {
+            'AdaptiveOptimizerAnalytical': AdaptiveOptimizerAnalytical,
+            'VectorOptimizer': VectorOptimizer,
+        }
         opt_type = config.get('optimizer', {}).get('type', 'AdaptiveOptimizerAnalytical')
 
-        if opt_type == 'AdaptiveOptimizerAnalytical':
-            return AdaptiveOptimizerAnalytical(config)
-        else:
-            raise ValueError(f"Unknown optimizer type: {opt_type}")
+        if opt_type not in registry:
+            raise ValueError(
+                f"Unknown optimizer type: {opt_type}. "
+                f"Supported: {sorted(registry)}"
+            )
+        return registry[opt_type](config)
 
     @abstractmethod
     def solve(

@@ -14,6 +14,9 @@ Usage:
     # RealSense camera input with MediaPipe hand detection
     mjpython teleop_sim.py --realsense --hand right
 
+    # ZED camera input with MediaPipe hand detection
+    mjpython teleop_sim.py --zed --hand right
+
     # Live VisionPro input
     mjpython teleop_sim.py --input visionpro --ip <your-vision-pro-ip>
 
@@ -25,6 +28,7 @@ Input device types:
 - mediapipe_replay: Replay recorded MediaPipe hand tracking data
 - video: MP4 video input with MediaPipe hand detection
 - realsense: RealSense camera input with MediaPipe hand detection
+- zed: ZED camera input with MediaPipe hand detection
 """
 
 import argparse
@@ -53,6 +57,99 @@ try:
     from input_devices.realsense_mediapipe import RealsenseMediaPipe
 except ImportError:
     RealsenseMediaPipe = None
+try:
+    from input_devices.zed_mediapipe import ZedMediaPipe
+except ImportError:
+    ZedMediaPipe = None
+
+
+def run_tuning_mode(
+    hand_side: str,
+    config_path: str,
+    input_device_type: str,
+    mediapipe_replay_path: str = "",
+    video_path: str = "",
+    playback_speed: float = 1.0,
+    playback_loop: bool = True,
+    show_video: bool = False,
+    viz_config_path: str = None,
+    fps: float = 30.0,
+):
+    """Run tuning visualization mode.
+
+    Launches the TuningViewer which displays three skeleton layers
+    (input/scaled/FK) and supports config hot-reload for parameter tuning.
+
+    Args:
+        hand_side: 'right' or 'left'
+        config_path: Path to YAML configuration file
+        input_device_type: Input device type
+        mediapipe_replay_path: Path to .pkl recording
+        video_path: Path to MP4 video file
+        playback_speed: Playback speed multiplier
+        playback_loop: Whether to loop playback
+        show_video: Show 2D video overlay
+        viz_config_path: Path to tuning_viz.yaml
+        fps: Playback FPS
+    """
+    from wuji_retargeting.viz import TuningViewer
+
+    config_file = Path(__file__).parent / config_path
+
+    if input_device_type == "mediapipe_replay":
+        viewer = TuningViewer(
+            hand_side=hand_side,
+            retarget_config_path=str(config_file),
+            viz_config_path=viz_config_path,
+        )
+        pkl_path = Path(__file__).parent / mediapipe_replay_path
+        viewer.play_recording(str(pkl_path), fps=fps)
+
+    elif input_device_type == "video":
+        # Process video frames first, then play
+        with open(config_file, "r") as f:
+            full_config = yaml.safe_load(f)
+        video_config = full_config.get("video_input", {})
+
+        video_device = VideoMediaPipe(
+            video_path=video_path,
+            hand_side=hand_side,
+            playback_speed=1.0,
+            loop=False,
+            video_config=video_config,
+            show_video=False,
+        )
+
+        data = []
+        hand_key = f"{hand_side}_fingers"
+        other_key = "left_fingers" if hand_side == "right" else "right_fingers"
+        while True:
+            try:
+                fingers_data = video_device.get_fingers_data()
+                data.append({
+                    hand_key: fingers_data[hand_key].copy(),
+                    other_key: fingers_data[other_key].copy(),
+                })
+            except (StopIteration, IndexError):
+                break
+        if hasattr(video_device, "cleanup"):
+            video_device.cleanup()
+
+        if not data:
+            print("Error: No frames extracted from video")
+            return
+
+        print(f"Extracted {len(data)} frames from video")
+        viewer = TuningViewer(
+            hand_side=hand_side,
+            retarget_config_path=str(config_file),
+            viz_config_path=viz_config_path,
+        )
+        viewer.play_recording(data, fps=fps)
+
+    else:
+        print(f"Tuning mode currently supports: mediapipe_replay, video")
+        print(f"For realsense, use: mjpython tuning_tool.py --realsense --hand {hand_side}")
 
 
 def run_teleop(
@@ -139,6 +236,11 @@ def run_teleop(
             video_config=video_config,
             show_video=show_video,
         ),
+        "zed": lambda: ZedMediaPipe(
+            hand_side=hand_side,
+            video_config=video_config,
+            show_video=show_video,
+        ),
     }
     if input_device_type not in device_map:
         raise ValueError(f"Unknown input device type: {input_device_type}")
@@ -151,6 +253,8 @@ def run_teleop(
         raise ImportError("video mode requires mediapipe and opencv-python")
     if input_device_type == "realsense" and RealsenseMediaPipe is None:
         raise ImportError("realsense mode requires mediapipe, opencv-python, and pyrealsense2")
+    if input_device_type == "zed" and ZedMediaPipe is None:
+        raise ImportError("zed mode requires mediapipe, opencv-python, and pyzed")
 
     input_device = device_map[input_device_type]()
 
@@ -249,6 +353,9 @@ Examples:
   # RealSense camera input with MediaPipe hand detection
   mjpython teleop_sim.py --realsense --hand right
 
+  # ZED camera input with MediaPipe hand detection
+  mjpython teleop_sim.py --zed --hand right
+
   # Live VisionPro input
   mjpython teleop_sim.py --input visionpro --ip <your-vision-pro-ip>
 
@@ -265,7 +372,7 @@ Examples:
 
     # Input device options
     parser.add_argument('--input', type=str, default=None,
-                        choices=['visionpro', 'mediapipe_replay', 'video', 'realsense'],
+                        choices=['visionpro', 'mediapipe_replay', 'video', 'realsense', 'zed'],
                         help='Input device type')
 
     # Shortcut options
@@ -291,8 +398,16 @@ Examples:
                         help='Play MP4 video file with MediaPipe hand detection (shortcut for --input video)')
     parser.add_argument('--realsense', action='store_true',
                         help='Use RealSense camera with MediaPipe hand detection (shortcut for --input realsense)')
+    parser.add_argument('--zed', action='store_true',
+                        help='Use ZED camera with MediaPipe hand detection (shortcut for --input zed)')
     parser.add_argument('--show-video', action='store_true',
-                        help='Show video with MediaPipe landmarks overlay (video/realsense mode)')
+                        help='Show video with MediaPipe landmarks overlay (video/realsense/zed mode)')
+    parser.add_argument('--tuning', action='store_true',
+                        help='Launch tuning visualization mode with three skeleton layers and config hot-reload')
+    parser.add_argument('--viz-config', type=str, default=None,
+                        help='Path to tuning visualization config (default: config/tuning_viz.yaml)')
+    parser.add_argument('--fps', type=float, default=30.0,
+                        help='Playback FPS for tuning mode (default: 30)')
 
     args = parser.parse_args()
 
@@ -301,7 +416,9 @@ Examples:
     mediapipe_replay_path = ""
     video_path = ""
 
-    if args.realsense:
+    if args.zed:
+        input_device_type = "zed"
+    elif args.realsense:
         input_device_type = "realsense"
     elif args.video:
         input_device_type = "video"
@@ -316,12 +433,33 @@ Examples:
         mediapipe_replay_path = "data/avp1.pkl"
 
     # Auto-switch config for non-AVP input devices
-    if input_device_type in ("realsense", "video") and args.config == 'config/adaptive_analytical_avp.yaml':
+    if input_device_type in ("realsense", "video", "zed") and args.config == 'config/adaptive_analytical_avp.yaml':
         args.config = 'config/adaptive_analytical_video.yaml'
 
     # Validate paths
     if input_device_type == "mediapipe_replay" and not mediapipe_replay_path:
         parser.error("--play FILE is required for mediapipe_replay mode")
+
+    # Tuning mode
+    if args.tuning:
+        viz_config_path = args.viz_config
+        if viz_config_path is None:
+            default_viz = Path(__file__).parent / "config" / "tuning_viz.yaml"
+            if default_viz.exists():
+                viz_config_path = str(default_viz)
+        run_tuning_mode(
+            hand_side=args.hand,
+            config_path=args.config,
+            input_device_type=input_device_type,
+            mediapipe_replay_path=mediapipe_replay_path,
+            video_path=video_path,
+            playback_speed=args.speed,
+            playback_loop=not args.no_loop,
+            show_video=args.show_video,
+            viz_config_path=viz_config_path,
+            fps=args.fps,
+        )
+        return
 
     # Run teleoperation
     log = run_teleop(
