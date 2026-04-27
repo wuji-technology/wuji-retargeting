@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2026.04.27] - 2026-04-27
+
+### Added
+
+- Added `VectorOptimizer`, a key-vector retargeting optimizer with example configs for AVP and video
+- Added ZED camera support as a real-time hand input
+- Added interactive parameter tuning visualizer with three-layer skeleton comparison, HUD, and fingertip highlighting; supports hot-reload and playback
+
 ## [0.2.0] - 2026-04-07
 
 ### Added
@@ -43,7 +51,8 @@ Initial public release.
 - Added real hardware control example (`teleop_real.py`)                                                      
 - Added YAML-based configuration system with per-finger scaling and pinch thresholds                          
                                                                                                                 
-[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.04.27...HEAD
+[2026.04.27]: https://github.com/wuji-technology/wuji-retargeting/compare/v0.2.0...v2026.04.27
 [0.2.0]: https://github.com/wuji-technology/wuji-retargeting/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/wuji-technology/wuji_retargeting/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/wuji-technology/wuji_retargeting/releases/tag/v0.1.0

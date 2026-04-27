@@ -1,0 +1,34 @@
+optimizer:
+  type: "VectorOptimizer"
+  hand_side: "right"
+
+retarget:
+  huber_delta: 2.0
+  norm_delta: 0.04
+
+  key_vectors:
+    # thumb (finger1)
+    - {origin: palm_link, task: finger1_link3,    origin_kp: 0, task_kp:  2, scale: 1.0}
+    - {origin: palm_link, task: finger1_link4,    origin_kp: 0, task_kp:  3, scale: 0.95}
+    - {origin: palm_link, task: finger1_tip_link, origin_kp: 0, task_kp:  4, scale: 0.95}
+    # index (finger2)
+    - {origin: palm_link, task: finger2_link3,    origin_kp: 0, task_kp:  6, scale: 1.02}
+    - {origin: palm_link, task: finger2_link4,    origin_kp: 0, task_kp:  7, scale: 1.05}
+    - {origin: palm_link, task: finger2_tip_link, origin_kp: 0, task_kp:  8, scale: 1.05}
+    # middle (finger3)
+    - {origin: palm_link, task: finger3_link3,    origin_kp: 0, task_kp: 10, scale: 1.0}
+    - {origin: palm_link, task: finger3_link4,    origin_kp: 0, task_kp: 11, scale: 1.0}
+    - {origin: palm_link, task: finger3_tip_link, origin_kp: 0, task_kp: 12, scale: 1.0}
+    # ring (finger4)
+    - {origin: palm_link, task: finger4_link3,    origin_kp: 0, task_kp: 14, scale: 1.0}
+    - {origin: palm_link, task: finger4_link4,    origin_kp: 0, task_kp: 15, scale: 1.0}
+    - {origin: palm_link, task: finger4_tip_link, origin_kp: 0, task_kp: 16, scale: 1.0}
+    # pinky (finger5)
+    - {origin: palm_link, task: finger5_link3,    origin_kp: 0, task_kp: 18, scale: 1.02}
+    - {origin: palm_link, task: finger5_link4,    origin_kp: 0, task_kp: 19, scale: 1.12}
+    - {origin: palm_link, task: finger5_tip_link, origin_kp: 0, task_kp: 20, scale: 1.15}
+
+  mediapipe_rotation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
