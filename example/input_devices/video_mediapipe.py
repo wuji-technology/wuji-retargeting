@@ -299,6 +299,10 @@ class VideoMediaPipe(InputDeviceBase):
         result[f"{self.hand_side}_fingers"] = kp
         return result
 
+    def get_landmarks(self) -> list:
+        """Return a shallow copy of preprocessed landmark frames."""
+        return list(self._landmarks)
+
     def _show_video_frame(self, frame_idx: int):
         """Display video frame with MediaPipe landmarks overlay."""
         if self._frames is None or self._frames[frame_idx] is None:

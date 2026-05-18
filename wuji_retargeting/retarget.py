@@ -67,9 +67,27 @@ class Retargeter:
         # Rotation adjustment
         self.rotation_xyz = retarget_config.get('mediapipe_rotation', {})
 
+        # Optional keypoint offsets (cm -> meters). Default zero -> byte-identical
+        # to the pre-offset retarget pipeline.
+        wrist_offset_cm = retarget_config.get('wrist_offset_cm', [0.0, 0.0, 0.0])
+        thumb_offset_cm = retarget_config.get('thumb_offset_cm', [0.0, 0.0, 0.0])
+        self.wrist_offset_m = np.array(wrist_offset_cm, dtype=np.float64) / 100.0
+        self.thumb_offset_m = np.array(thumb_offset_cm, dtype=np.float64) / 100.0
+        if self.wrist_offset_m.shape != (3,) or self.thumb_offset_m.shape != (3,):
+            raise ValueError(
+                "retarget.wrist_offset_cm and retarget.thumb_offset_cm must be length-3 vectors"
+            )
+        self._has_offset = bool(
+            np.any(self.wrist_offset_m) or np.any(self.thumb_offset_m)
+        )
+
     @classmethod
     def from_yaml(cls, yaml_path: str, hand_side: str = "right") -> "Retargeter":
         """Create retargeter from YAML configuration file.
+
+        Records the yaml's parent directory in ``config['__yaml_dir']`` so that
+        downstream consumers (e.g. ``optimizer.urdf_path``) can resolve relative
+        paths against the yaml file's location.
 
         Args:
             yaml_path: Path to YAML configuration file
@@ -78,8 +96,10 @@ class Retargeter:
         Returns:
             Retargeter instance
         """
+        yaml_path = Path(yaml_path).resolve()
         with open(yaml_path, 'r') as f:
             config = yaml.safe_load(f)
+        config['__yaml_dir'] = str(yaml_path.parent)
         return cls(config, hand_side)
 
     @classmethod
@@ -116,6 +136,10 @@ class Retargeter:
         if self.rotation_xyz:
             mediapipe_kp = self._apply_rotation(mediapipe_kp)
 
+        # Apply optional keypoint offsets (skipped when both are zero)
+        if self._has_offset:
+            mediapipe_kp = self._apply_offset(mediapipe_kp)
+
         # Solve IK
         qpos = self.optimizer.solve(mediapipe_kp)
 
@@ -151,6 +175,10 @@ class Retargeter:
         if self.rotation_xyz:
             mediapipe_kp = self._apply_rotation(mediapipe_kp)
 
+        # Apply optional keypoint offsets (skipped when both are zero)
+        if self._has_offset:
+            mediapipe_kp = self._apply_offset(mediapipe_kp)
+
         # Solve IK
         qpos = self.optimizer.solve(mediapipe_kp)
 
@@ -173,6 +201,21 @@ class Retargeter:
             verbose_dict['pinch_alphas'] = self.optimizer._compute_pinch_alpha(mediapipe_kp)
 
         return filtered_qpos, verbose_dict
+
+    def _apply_offset(self, mediapipe_kp: np.ndarray) -> np.ndarray:
+        """Apply wrist and thumb keypoint offsets (in meters).
+
+        Args:
+            mediapipe_kp: (21, 3) keypoints in wrist frame (meters)
+
+        Returns:
+            Keypoints with offsets applied:
+                - wrist_offset added to indices 5..20 (four fingers)
+                - thumb_offset added to indices 1..4 (thumb)
+        """
+        mediapipe_kp[5:] = mediapipe_kp[5:] + self.wrist_offset_m
+        mediapipe_kp[1:5] = mediapipe_kp[1:5] + self.thumb_offset_m
+        return mediapipe_kp
 
     def _apply_rotation(self, keypoints: np.ndarray) -> np.ndarray:
         """Apply rotation adjustment to keypoints.

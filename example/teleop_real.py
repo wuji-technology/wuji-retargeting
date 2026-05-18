@@ -26,12 +26,16 @@ Usage:
     # Record input data
     python teleop_real.py --input visionpro --record
 
+    # Live Wuji Glove input via wuji_sdk
+    python teleop_real.py --input wuji_glove --hand right --glove-sn <YOUR_SN>
+
 Input device types:
 - visionpro: Live VisionPro input
 - mediapipe_replay: Replay recorded MediaPipe hand tracking data
 - video: MP4 video input with MediaPipe hand detection
 - realsense: RealSense camera input with MediaPipe hand detection
 - zed: ZED camera input with MediaPipe hand detection
+- wuji_glove: Live Wuji Glove input via wuji_sdk
 """
 
 import argparse
@@ -63,6 +67,63 @@ try:
     from input_devices.zed_mediapipe import ZedMediaPipe
 except ImportError:
     ZedMediaPipe = None
+try:
+    from input_devices.wuji_glove_device import WujiGloveDevice
+    WUJI_SDK_AVAILABLE = True
+except ImportError:
+    WujiGloveDevice = None
+    WUJI_SDK_AVAILABLE = False
+
+
+def run_tuning_mode(
+    hand_side: str,
+    config_path: str,
+    input_device_type: str,
+    mediapipe_replay_path: str = "",
+    video_path: str = "",
+    show_video: bool = False,
+    viz_config_path: str = None,
+    fps: float = 30.0,
+    device_name: str = "glove",
+    glove_sn: str = "",
+):
+    """Backward-compatible wrapper for the standalone tuning tool."""
+    import tuning_tool
+
+    class TuningArgs:
+        pass
+
+    args = TuningArgs()
+    args.hand = hand_side
+    args.config = config_path
+    args.viz_config = viz_config_path
+    args.play = mediapipe_replay_path or None
+    args.video = video_path or None
+    args.realsense = input_device_type == "realsense"
+    args.zed = input_device_type == "zed"
+    args.wuji_glove = input_device_type == "wuji_glove"
+    args.device_name = device_name
+    args.glove_sn = glove_sn
+    args.show_video = show_video
+    args.fps = fps
+
+    print(
+        "Note: --tuning on teleop scripts is kept for compatibility. "
+        "Prefer running tuning_tool.py directly."
+    )
+
+    if args.wuji_glove:
+        tuning_tool.run_wuji_glove_mode(args)
+    elif args.zed:
+        tuning_tool.run_zed_mode(args)
+    elif args.realsense:
+        tuning_tool.run_realsense_mode(args)
+    elif args.video:
+        tuning_tool.run_video_mode(args)
+    elif args.play:
+        tuning_tool.run_recording_mode(args)
+    else:
+        print("Tuning mode requires --play FILE or a live/video input source")
 
 
 def run_teleop(
@@ -76,6 +137,8 @@ def run_teleop(
     enable_recording: bool = False,
     video_path: str = "",
     show_video: bool = False,
+    device_name: str = "glove",
+    glove_sn: str = "",
 ):
     """Run teleoperation with real hardware.
 
@@ -90,6 +153,8 @@ def run_teleop(
         enable_recording: Whether to record raw input data
         video_path: Path to MP4 video file
         show_video: Whether to display video with MediaPipe landmarks overlay
+        device_name: wuji_sdk device name for Wuji Glove (default "glove")
+        glove_sn: Wuji Glove serial number (required when multiple Wuji devices online)
     """
     hand_side = hand_side.lower()
     assert hand_side in {"right", "left"}, "hand_side must be 'right' or 'left'"
@@ -108,6 +173,18 @@ def run_teleop(
     with open(config_file, 'r') as f:
         full_config = yaml.safe_load(f)
     video_config = full_config.get('video_input', {})
+
+    def create_wuji_glove_device():
+        if not WUJI_SDK_AVAILABLE:
+            raise ImportError(
+                "wuji_sdk is not installed. "
+                "Please install wuji_sdk to use --input wuji_glove."
+            )
+        return WujiGloveDevice(
+            hand_side=hand_side,
+            device_name=device_name,
+            sn=glove_sn or None,
+        )
 
     # Initialize input device
     device_map = {
@@ -135,6 +212,7 @@ def run_teleop(
             video_config=video_config,
             show_video=show_video,
         ),
+        "wuji_glove": create_wuji_glove_device,
     }
     if input_device_type not in device_map:
         raise ValueError(f"Unknown input device type: {input_device_type}")
@@ -180,8 +258,8 @@ def run_teleop(
             fingers_data = input_device.get_fingers_data()
             fingers_pose = fingers_data[f"{hand_side}_fingers"]  # (21, 3)
 
-            # Skip if data is all zeros
-            if np.allclose(fingers_pose, 0):
+            # Skip until the first valid frame arrives from the input device.
+            if fingers_pose is None or np.allclose(fingers_pose, 0):
                 time.sleep(0.01)
                 continue
 
@@ -189,8 +267,16 @@ def run_teleop(
             if enable_recording:
                 input_data_log.append({
                     "t": time.time() - start_time,
-                    "left_fingers": fingers_data["left_fingers"].copy(),
-                    "right_fingers": fingers_data["right_fingers"].copy(),
+                    "left_fingers": (
+                        None
+                        if fingers_data["left_fingers"] is None
+                        else fingers_data["left_fingers"].copy()
+                    ),
+                    "right_fingers": (
+                        None
+                        if fingers_data["right_fingers"] is None
+                        else fingers_data["right_fingers"].copy()
+                    ),
                 })
 
             # Retarget to joint angles
@@ -249,6 +335,9 @@ Examples:
 
   # Record input data while using VisionPro
   python teleop_real.py --input visionpro --record
+
+  # Compatibility tuning shortcut
+  python teleop_real.py --play data/avp1.pkl --hand right --tuning
         """
     )
 
@@ -260,7 +349,7 @@ Examples:
 
     # Input device options
     parser.add_argument('--input', type=str, default=None,
-                        choices=['visionpro', 'mediapipe_replay', 'video', 'realsense', 'zed'],
+                        choices=['visionpro', 'mediapipe_replay', 'video', 'realsense', 'zed', 'wuji_glove'],
                         help='Input device type')
 
     # Shortcut options
@@ -291,11 +380,15 @@ Examples:
     parser.add_argument('--show-video', action='store_true',
                         help='Show video with MediaPipe landmarks overlay (video/realsense/zed mode)')
     parser.add_argument('--tuning', action='store_true',
-                        help='Launch tuning visualization mode with three skeleton layers and config hot-reload')
+                        help='Launch tuning visualization mode (deprecated; use tuning_tool.py directly)')
     parser.add_argument('--viz-config', type=str, default=None,
                         help='Path to tuning visualization config (default: config/tuning_viz.yaml)')
     parser.add_argument('--fps', type=float, default=30.0,
                         help='Playback FPS for tuning mode (default: 30)')
+    parser.add_argument('--device-name', type=str, default='glove',
+                        help='wuji_sdk device name for Wuji Glove (default: glove)')
+    parser.add_argument('--glove-sn', type=str, default='',
+                        help='Wuji Glove serial number (required when multiple Wuji devices online)')
 
     args = parser.parse_args()
 
@@ -321,32 +414,31 @@ Examples:
         mediapipe_replay_path = "data/avp1.pkl"
 
     # Auto-switch config for non-AVP input devices
-    if input_device_type in ("realsense", "video", "zed") and args.config == 'config/adaptive_analytical_avp.yaml':
-        args.config = 'config/adaptive_analytical_video.yaml'
+    if args.config == 'config/adaptive_analytical_avp.yaml':
+        if input_device_type in ("realsense", "video", "zed"):
+            args.config = 'config/adaptive_analytical_video.yaml'
+        elif input_device_type == "wuji_glove":
+            args.config = f'config/adaptive_analytical_wuji_glove_{args.hand}.yaml'
 
-    # Tuning mode (visualization only, does not connect to hardware)
+    # Compatibility tuning mode. Prefer invoking tuning_tool.py directly.
     if args.tuning:
-        from wuji_retargeting.viz import TuningViewer
-        import pickle
-
         viz_config_path = args.viz_config
         if viz_config_path is None:
             default_viz = Path(__file__).parent / "config" / "tuning_viz.yaml"
             if default_viz.exists():
-                viz_config_path = str(default_viz)
-
-        config_file = Path(__file__).parent / args.config
-        viewer = TuningViewer(
+                viz_config_path = "config/tuning_viz.yaml"
+        run_tuning_mode(
             hand_side=args.hand,
-            retarget_config_path=str(config_file),
+            config_path=args.config,
+            input_device_type=input_device_type,
+            mediapipe_replay_path=mediapipe_replay_path,
+            video_path=video_path,
+            show_video=args.show_video,
             viz_config_path=viz_config_path,
+            fps=args.fps,
+            device_name=args.device_name,
+            glove_sn=args.glove_sn,
         )
-
-        if mediapipe_replay_path:
-            pkl_path = Path(__file__).parent / mediapipe_replay_path
-            viewer.play_recording(str(pkl_path), fps=args.fps)
-        else:
-            print("Tuning mode requires --play FILE to specify recording data")
         return
 
     # Run teleoperation
@@ -361,6 +453,8 @@ Examples:
         enable_recording=args.record,
         video_path=video_path,
         show_video=args.show_video,
+        device_name=args.device_name,
+        glove_sn=args.glove_sn,
     )
 
     # Save recording if enabled

@@ -4,7 +4,7 @@ AdaptiveOptimizerAnalytical - Recommended optimizer using Huber loss + analytica
 Uses adaptive blending between TipDirVec and FullHandVec based on pinch distance.
 
 VectorOptimizer - Generic key-vector matching optimizer. Minimizes distances between
-configurable (origin_link → task_link) robot vectors and corresponding MediaPipe
+configurable (origin_link -> task_link) robot vectors and corresponding MediaPipe
 keypoint vectors. Configurable via `retarget.key_vectors` in YAML.
 
 All parameters are read from YAML configuration files.
