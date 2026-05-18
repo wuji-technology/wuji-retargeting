@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
 from .base import BaseOptimizer, M_TO_CM, TimingStats, huber_loss_np, huber_loss_grad_np
+from ..robot import RobotWrapper
 
 
 class AdaptiveOptimizerAnalytical(BaseOptimizer):
@@ -85,6 +87,46 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.link1_indices = [
             self.computed_link_names.index(name) for name in self.link1_names
         ]
+
+        # Optional extensions (default: inactive, byte-identical to vanilla loss).
+        # Thumb-specific: drop wrist->PIP loss term from FullHand on thumb (use DIP+TIP only).
+        self.thumb_skip_pip = retarget_config.get('thumb_skip_pip', False)
+        # Hyperextension soft constraint on PIP/DIP joints.
+        self.w_hyper = retarget_config.get('w_hyper', 0.0)
+        self.soft_min = retarget_config.get('soft_min', 0.0)
+        # DIP<->PIP biomechanical coupling soft constraint.
+        self.w_couple = retarget_config.get('w_couple', 0.0)
+        self.couple_ratio = retarget_config.get('couple_ratio', 0.7)
+        # qpos layout (5 fingers x 4 joints: MCP_aa, MCP_fe, PIP, DIP).
+        self._pip_idx = np.array([2, 6, 10, 14, 18], dtype=np.int64)
+        self._dip_idx = np.array([3, 7, 11, 15, 19], dtype=np.int64)
+        self._flex_idx = np.array([2, 3, 6, 7, 10, 11, 14, 15, 18, 19], dtype=np.int64)
+
+        # Optional override: load a custom hand URDF (e.g. WH120) and rebuild
+        # robot model + joint bounds + link indices. Default: None -> use base URDF.
+        opt_cfg = config.get('optimizer', {})
+        urdf_override = opt_cfg.get('urdf_path')
+        if urdf_override:
+            yaml_dir = config.get('__yaml_dir')
+            urdf_path = Path(urdf_override)
+            if not urdf_path.is_absolute():
+                if yaml_dir is None:
+                    raise RuntimeError(
+                        "optimizer.urdf_path is relative but config['__yaml_dir'] not set; "
+                        "use Retargeter.from_yaml or set __yaml_dir explicitly"
+                    )
+                urdf_path = (Path(yaml_dir) / urdf_path).resolve()
+            if not urdf_path.exists():
+                raise FileNotFoundError(f"optimizer.urdf_path not found: {urdf_path}")
+
+            self.robot = RobotWrapper(str(urdf_path), hand_side=self.hand_side)
+            if self.robot.model.nq != self.num_joints:
+                raise RuntimeError(
+                    f"Override URDF has nq={self.robot.model.nq}, expected {self.num_joints}"
+                )
+            self.opt.set_lower_bounds(self.robot.joint_limits[:, 0].tolist())
+            self.opt.set_upper_bounds(self.robot.joint_limits[:, 1].tolist())
+            self._build_link_indices()
 
     def _compute_pinch_alpha(self, mediapipe_keypoints: np.ndarray) -> np.ndarray:
         """Compute alpha weights for each finger."""
@@ -275,7 +317,16 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         loss_pip = huber_loss_np(dist_pip, self.huber_delta)
         loss_dip = huber_loss_np(dist_dip, self.huber_delta)
         loss_tip_full = huber_loss_np(dist_tip, self.huber_delta)
-        loss_full_hand = (loss_pip + loss_dip + loss_tip_full) / 3.0  # (5,)
+
+        # Per-finger PIP mask + divisor. When thumb_skip_pip=False (default) this
+        # is mask=1/n=3 for all fingers => identical to (loss_pip+loss_dip+loss_tip)/3.0.
+        pip_mask = np.ones(5, dtype=np.float64)
+        n_terms = np.full(5, 3.0, dtype=np.float64)
+        if self.thumb_skip_pip:
+            pip_mask[0] = 0.0
+            n_terms[0] = 2.0
+
+        loss_full_hand = (pip_mask * loss_pip + loss_dip + loss_tip_full) / n_terms  # (5,)
 
         # Gradients for full hand vectors
         huber_grad_pip = huber_loss_grad_np(dist_pip, self.huber_delta)
@@ -287,9 +338,10 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         diff_normed_tip = diff_tip / (dist_tip[:, None] + 1e-8)
 
         for i in range(5):
-            grad_coeff = (1.0 - alphas[i]) * self.w_full_hand / 3.0
-            # PIP gradient
-            total_grad += grad_coeff * huber_grad_pip[i] * (diff_normed_pip[i] @ (J_link3[i] - J_wrist))
+            grad_coeff = (1.0 - alphas[i]) * self.w_full_hand / n_terms[i]
+            # PIP gradient (skipped only when thumb_skip_pip masks finger i)
+            if pip_mask[i] != 0.0:
+                total_grad += grad_coeff * huber_grad_pip[i] * (diff_normed_pip[i] @ (J_link3[i] - J_wrist))
             # DIP gradient
             total_grad += grad_coeff * huber_grad_dip[i] * (diff_normed_dip[i] @ (J_link4[i] - J_wrist))
             # TIP gradient
@@ -305,6 +357,22 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         if last_qpos is not None:
             total_loss += self.norm_delta * np.sum((qpos - last_qpos) ** 2)
             total_grad += 2.0 * self.norm_delta * (qpos - last_qpos)
+
+        # === Hyperextension penalty (PIP/DIP only, gated by w_hyper) ===
+        if self.w_hyper != 0.0:
+            flex_qpos = qpos[self._flex_idx]
+            penalty = np.maximum(self.soft_min - flex_qpos, 0.0)
+            total_loss += self.w_hyper * np.sum(penalty ** 2)
+            total_grad[self._flex_idx] += self.w_hyper * (-2.0 * penalty)
+
+        # === Coupling penalty (DIP toward couple_ratio * PIP, gated by w_couple) ===
+        if self.w_couple != 0.0:
+            pip_q = qpos[self._pip_idx]
+            dip_q = qpos[self._dip_idx]
+            diff = dip_q - self.couple_ratio * pip_q
+            total_loss += self.w_couple * np.sum(diff ** 2)
+            total_grad[self._dip_idx] += self.w_couple * (2.0 * diff)
+            total_grad[self._pip_idx] += self.w_couple * (-2.0 * self.couple_ratio * diff)
 
         if self._enable_timing:
             self._timing.gradient_ms += (time.perf_counter() - t_grad_start) * 1000

@@ -8,3 +8,4 @@ pyyaml
 scipy>=1.11.0
 mediapipe
 opencv-python
+wuji-sdk>=0.10.0
