@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2026.05.23]
+
+### Changed
+
+- Tuned the Wuji Glove left/right example configs for better fit: refined per-finger segment scaling, adjusted MediaPipe rotation calibration, and disabled the wrist/thumb offsets in favor of the SDK's built-in per-device calibration
+
 ## [2026.05.18]
 
 ### Added
@@ -69,7 +75,8 @@ Initial public release.
 - Added real hardware control example
 - Added YAML-based configuration system with per-finger scaling and pinch thresholds
 
-[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.18...HEAD
+[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.23...HEAD
+[2026.05.23]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.18...v2026.05.23
 [2026.05.18]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.04.27...v2026.05.18
 [2026.04.27]: https://github.com/wuji-technology/wuji-retargeting/compare/v0.2.0...v2026.04.27
 [0.2.0]: https://github.com/wuji-technology/wuji-retargeting/compare/v0.1.1...v0.2.0
