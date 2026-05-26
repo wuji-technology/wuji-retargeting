@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2026.05.26]
+
+### Added
+
+- Added Retargeting Parameter Tuning Guide covering tuning_tool usage, skeleton color legend, a full parameter quick-reference table, and the recommended tuning order
+
+### Changed
+
+- Swapped the hand description submodule from `wuji_hand_description` to `wuji-description`. The URDF and MJCF assets now live under `wuji-description/hand/body/`, and the package no longer depends on the `mujoco-sim` submodule for hand model files.
+
 ## [2026.05.23]
 
 ### Changed
@@ -75,7 +85,8 @@ Initial public release.
 - Added real hardware control example
 - Added YAML-based configuration system with per-finger scaling and pinch thresholds
 
-[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.23...HEAD
+[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.26...HEAD
+[2026.05.26]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.23...v2026.05.26
 [2026.05.23]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.18...v2026.05.23
 [2026.05.18]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.04.27...v2026.05.18
 [2026.04.27]: https://github.com/wuji-technology/wuji-retargeting/compare/v0.2.0...v2026.04.27
