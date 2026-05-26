@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/72116289-7a33-4a6b-83ca-fb4d9aaece0d
 ├── wuji_retargeting/                 // Core package: retargeter interface, optimizers, kinematics, coordinate transforms
 │   ├── opt/                          // Optimizer implementations: adaptive analytical and key-vector
 │   ├── viz/                          // Visualization tools for parameter tuning
-│   └── wuji_hand_description/        // URDF and mesh submodule for Wuji Hand
+│   └── wuji-description/             // URDF and mesh submodule for Wuji Hand
 ├── example/                          // Demonstration scripts for simulation and hardware control
 │   ├── input_devices/                // Input device modules (Vision Pro, MediaPipe replay, video, RealSense, ZED, Wuji Glove)
 │   ├── config/                       // YAML configuration files
@@ -107,6 +107,8 @@ mjpython tuning_tool.py --zed --hand right
 5. Compare the three skeleton layers to evaluate your tuning
 
 The viewer highlights affected fingers in red when parameters change, and prints tuning guidance in the terminal.
+
+For a full parameter reference and the recommended tuning order, see the [Retargeting Parameter Tuning Guide](docs/wuji-tuning-guide.md).
 
 ### Recommended: Wuji Glove Input
 

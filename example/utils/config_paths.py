@@ -1,8 +1,8 @@
 """Path-resolution helpers shared across example scripts.
 
 resolve_mujoco_model_dir(config_path):
-    If the retarget config YAML sets optimizer.mjcf_path, return the
-    grandparent directory (the dir that contains wuji_hand_description/).
+    If the retarget config YAML sets optimizer.mjcf_path, return its parent
+    directory (the dir that contains mjcf/<hand>.xml).
     Return None when mjcf_path is absent — caller falls back to its default.
 """
 from __future__ import annotations
@@ -20,12 +20,12 @@ def resolve_mujoco_model_dir(config_path: Path) -> Optional[str]:
     if not mjcf_rel:
         return None
     mjcf_abs = (config_path.parent / mjcf_rel).resolve()
-    # mjcf_abs = .../wuji_hand_description/mjcf/<hand>.xml
-    # parents[2] = dir that contains wuji_hand_description/
-    if len(mjcf_abs.parents) <= 2:
+    # mjcf_abs = .../<model_dir>/mjcf/<hand>.xml
+    # parents[1] = <model_dir> (e.g. wuji-description/hand/body/)
+    if len(mjcf_abs.parents) <= 1:
         raise ValueError(
             "optimizer.mjcf_path must resolve to "
-            ".../wuji_hand_description/mjcf/<hand>.xml, "
+            ".../<model_dir>/mjcf/<hand>.xml, "
             f"got {mjcf_abs}"
         )
-    return str(mjcf_abs.parents[2])
+    return str(mjcf_abs.parents[1])

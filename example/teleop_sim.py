@@ -158,8 +158,10 @@ def run_teleop(
     assert hand_side in {"right", "left"}, "hand_side must be 'right' or 'left'"
 
     # Load MuJoCo model
-    mujoco_sim_path = Path(__file__).parent / "utils" / "mujoco-sim"
-    mjcf_path = mujoco_sim_path / "wuji_hand_description" / "mjcf" / f"{hand_side}.xml"
+    mjcf_path = (
+        Path(__file__).resolve().parents[1]
+        / "wuji_retargeting" / "wuji-description" / "hand" / "body" / "mjcf" / f"{hand_side}.xml"
+    )
     if not mjcf_path.exists():
         raise FileNotFoundError(f"MuJoCo model file not found: {mjcf_path}")
 
