@@ -122,11 +122,9 @@ class TuningViewer:
 
         # Load MuJoCo model
         if mujoco_model_dir is None:
-            # Default for configs without explicit mjcf_path: use the
-            # wuji-description submodule shipped inside the retargeting package.
             mujoco_model_dir = (
-                Path(__file__).resolve().parents[2]
-                / "wuji_retargeting" / "wuji-description" / "hand" / "body"
+                Path(__file__).resolve().parents[1]
+                / "utils" / "mujoco-sim" / "wuji_hand_description"
             )
         mjcf_path = Path(mujoco_model_dir) / "mjcf" / f"{self.hand_side}.xml"
         if not mjcf_path.exists():

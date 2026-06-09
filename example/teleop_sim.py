@@ -159,8 +159,8 @@ def run_teleop(
 
     # Load MuJoCo model
     mjcf_path = (
-        Path(__file__).resolve().parents[1]
-        / "wuji_retargeting" / "wuji-description" / "hand" / "body" / "mjcf" / f"{hand_side}.xml"
+        Path(__file__).resolve().parent
+        / "utils" / "mujoco-sim" / "wuji_hand_description" / "mjcf" / f"{hand_side}.xml"
     )
     if not mjcf_path.exists():
         raise FileNotFoundError(f"MuJoCo model file not found: {mjcf_path}")
