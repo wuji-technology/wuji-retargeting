@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2026.6.10]
+
+### Fixed
+
+- Fixed the `wuji-description` hand model submodule being absent from the v2026.05.26 release. A fresh `git clone --recurse-submodules` now correctly fetches the URDF/MJCF assets, so `teleop_sim`, `teleop_real`, and `tuning_tool` work out of the box.
+
 ## [2026.05.26]
 
 ### Added
@@ -85,7 +91,8 @@ Initial public release.
 - Added real hardware control example
 - Added YAML-based configuration system with per-finger scaling and pinch thresholds
 
-[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.26...HEAD
+[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.10...HEAD
+[2026.6.10]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.26...v2026.6.10
 [2026.05.26]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.23...v2026.05.26
 [2026.05.23]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.18...v2026.05.23
 [2026.05.18]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.04.27...v2026.05.18
