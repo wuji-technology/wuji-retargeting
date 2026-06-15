@@ -1,0 +1,79 @@
+# AdaptiveOptimizerAnalytical configuration for Wuji Glove driving the WH120 hand (RIGHT HAND).
+#
+# Same retargeting setup as adaptive_analytical_wuji_glove_right.yaml, with the
+# optimizer pointed at the WH120 hand model via the urdf_path / mjcf_path overrides
+# below. The glove side is hand-model-agnostic: it feeds 21 MediaPipe keypoints into
+# the Retargeter through the wuji_sdk WujiGloveDevice (teleop_sim.py / teleop_real.py).
+#
+# Usage:
+#   sim : python teleop_sim.py  --hand right --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+#   real: python teleop_real.py --hand right --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+  # --- WH120 = official "Wuji Hand 2" at hand2/body/ in the wuji-description
+  # submodule (v2026.6.11+). Both IK and sim use the official assets shipped there:
+  #   IK  : urdf_path  -> official hand2/body/urdf (Pinocchio; meshes not loaded)
+  #   sim : mjcf_path  -> official hand2/body/mjcf (MuJoCo; meshes under hand2/body/meshes)
+  urdf_path: "../../wuji_retargeting/wuji-description/hand2/body/urdf/right.urdf"
+  mjcf_path: "../../wuji_retargeting/wuji-description/hand2/body/mjcf/right.xml"
+  # Wuji Hand 2 uses anatomical link names (r_wrist / r_index_finger_pip ...).
+  # link_naming maps the optimizer's logical roles onto them so the retargeting
+  # code stays URDF-agnostic. fingers are ordered thumb..pinky.
+  link_naming:
+    prefix: "r_"
+    palm:    "wrist"
+    fingers: [thumb, index_finger, middle_finger, ring_finger, pinky]
+    pip:     "{finger}_middle"        # PIP
+    dip:     "{finger}_distal"        # DIP
+    tip:     "{finger}_tip"           # fingertip
+    link1:   "{finger}_proximal_abd"  # MCP abduction link (finger-plane ref)
+
+retarget:
+  huber_delta: 2.0
+  huber_delta_dir: 0.5
+  norm_delta: 0.04
+  w_pos: 1.0
+  w_dir: 2.0
+  scaling: 1.0
+  w_full_hand: 1.0
+  thumb_skip_pip: true   # wuji_glove SDK reconstructs thumb MCP (kp[2]) inaccurately; drop it from FullHandVec loss
+  # Style penalty: discourage hyperextension and uncoupled PIP/DIP curl
+  w_hyper: 1.0           # PIP/DIP joints below soft_min are penalized quadratically
+  soft_min: 0.0          # joint angle threshold (rad); 0 = no negative angles allowed
+  w_couple: 0.1          # DIP pulled toward couple_ratio * PIP per finger
+  couple_ratio: 0.7      # biomechanical (DIP curls ~70% of PIP)
+  lp_alpha: 0.2
+
+  # Per-segment scaling of the retargeted finger lengths (per finger: proximal,
+  # middle, distal). Tune per hand if the fingertips over- or under-reach the
+  # target keypoints.
+  # segment_scaling:
+  #   thumb:  [0.9, 0.9, 0.9]
+  #   index:  [0.95, 0.95, 0.95]
+  #   middle: [0.9, 0.9, 0.9]
+  #   ring:   [0.9, 0.9, 0.9]
+  #   pinky:  [1.0, 1.0, 1.0]
+
+  segment_scaling:
+    thumb:  [1.0, 1.0, 1.0]
+    index:  [1.0, 1.0, 1.0]
+    middle: [1.0, 1.0, 1.0]
+    ring:   [1.0, 1.0, 1.0]
+    pinky:  [1.0, 1.0, 1.0]
+
+  pinch_thresholds:
+    index:  { d1: 2.0, d2: 4.0 }
+    middle: { d1: 2.0, d2: 4.0 }
+    ring:   { d1: 2.0, d2: 4.0 }
+    pinky:  { d1: 2.0, d2: 4.0 }
+  mediapipe_rotation:
+    x: 0.0
+    y: 0.0
+    z: -105.0
+  #
+  wrist_offset_cm: [0.0, 0.0, 0.0]   # disabled: SDK uses per-SN calibrated URDF, no extra bias needed
+  thumb_offset_cm: [0.0, 0.0, 0.0]   # disabled: same reason
+
+wuji_glove:
+  device_name: "glove"

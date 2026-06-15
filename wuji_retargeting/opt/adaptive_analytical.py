@@ -71,8 +71,8 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             pinch_config.get('pinky', {}).get('d2', 4.0),
         ], dtype=np.float64)
 
-        # Add link1 for finger plane computation
-        self.link1_names = [f"finger{i}_link1" for i in range(1, 6)]
+        # link1 (finger-plane) names come from BaseOptimizer._resolve_link_names,
+        # so a custom optimizer.link_naming applies to them too.
         all_link_names = (
             [self.origin_link_name] +
             self.task_link_names +
@@ -88,7 +88,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             self.computed_link_names.index(name) for name in self.link1_names
         ]
 
-        # Optional extensions (default: inactive, byte-identical to vanilla loss).
+        # Optional extensions (default: inactive, equivalent to the base loss).
         # Thumb-specific: drop wrist->PIP loss term from FullHand on thumb (use DIP+TIP only).
         self.thumb_skip_pip = retarget_config.get('thumb_skip_pip', False)
         # Hyperextension soft constraint on PIP/DIP joints.
@@ -97,36 +97,41 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         # DIP<->PIP biomechanical coupling soft constraint.
         self.w_couple = retarget_config.get('w_couple', 0.0)
         self.couple_ratio = retarget_config.get('couple_ratio', 0.7)
-        # qpos layout (5 fingers x 4 joints: MCP_aa, MCP_fe, PIP, DIP).
-        self._pip_idx = np.array([2, 6, 10, 14, 18], dtype=np.int64)
-        self._dip_idx = np.array([3, 7, 11, 15, 19], dtype=np.int64)
-        self._flex_idx = np.array([2, 3, 6, 7, 10, 11, 14, 15, 18, 19], dtype=np.int64)
 
-        # Optional override: load a custom hand URDF (e.g. WH120) and rebuild
-        # robot model + joint bounds + link indices. Default: None -> use base URDF.
-        opt_cfg = config.get('optimizer', {})
-        urdf_override = opt_cfg.get('urdf_path')
-        if urdf_override:
-            yaml_dir = config.get('__yaml_dir')
-            urdf_path = Path(urdf_override)
-            if not urdf_path.is_absolute():
-                if yaml_dir is None:
-                    raise RuntimeError(
-                        "optimizer.urdf_path is relative but config['__yaml_dir'] not set; "
-                        "use Retargeter.from_yaml or set __yaml_dir explicitly"
-                    )
-                urdf_path = (Path(yaml_dir) / urdf_path).resolve()
-            if not urdf_path.exists():
-                raise FileNotFoundError(f"optimizer.urdf_path not found: {urdf_path}")
+        # The optimizer.urdf_path override (e.g. a WH120 model) is loaded up front
+        # by BaseOptimizer, so self.robot is already the final hand here.
 
-            self.robot = RobotWrapper(str(urdf_path), hand_side=self.hand_side)
-            if self.robot.model.nq != self.num_joints:
-                raise RuntimeError(
-                    f"Override URDF has nq={self.robot.model.nq}, expected {self.num_joints}"
-                )
-            self.opt.set_lower_bounds(self.robot.joint_limits[:, 0].tolist())
-            self.opt.set_upper_bounds(self.robot.joint_limits[:, 1].tolist())
-            self._build_link_indices()
+        # Resolve PIP/DIP qpos indices from the (possibly overridden) URDF.
+        self._resolve_flex_indices()
+
+    def _resolve_flex_indices(self):
+        """Resolve PIP/DIP qpos indices dynamically from the URDF kinematic chain.
+
+        Each finger's PIP/DIP joint is mapped to its qpos slot via the PIP/DIP
+        link's parent joint, so the mapping follows the actual URDF instead of a
+        fixed index layout. This keeps the hyperextension (``w_hyper``) and
+        DIP<->PIP coupling (``w_couple``) soft constraints on the correct qpos
+        dimensions even when a custom URDF (``optimizer.urdf_path``, e.g. WH120)
+        declares joints in a different order or with a non-uniform DOF layout. A
+        missing finger link or a duplicate resolved index raises immediately at
+        load time instead of corrupting the optimization silently.
+        """
+        pip_idx = [self.robot.get_actuated_qpos_index(n) for n in self.link3_names]
+        dip_idx = [self.robot.get_actuated_qpos_index(n) for n in self.link4_names]
+
+        combined = pip_idx + dip_idx
+        if len(set(combined)) != len(combined):
+            raise RuntimeError(
+                "Resolved PIP/DIP qpos indices contain duplicates "
+                f"(pip={pip_idx}, dip={dip_idx}); check the URDF finger chain "
+                "(finger{i}_link3 = PIP, finger{i}_link4 = DIP)."
+            )
+
+        self._pip_idx = np.array(pip_idx, dtype=np.int64)
+        self._dip_idx = np.array(dip_idx, dtype=np.int64)
+        # flex = PIP ∪ DIP, sorted (order is irrelevant: the penalty is an
+        # elementwise sum and its gradient scatters back to the same indices).
+        self._flex_idx = np.array(sorted(combined), dtype=np.int64)
 
     def _compute_pinch_alpha(self, mediapipe_keypoints: np.ndarray) -> np.ndarray:
         """Compute alpha weights for each finger."""

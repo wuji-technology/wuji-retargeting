@@ -191,8 +191,27 @@ class BaseOptimizer(ABC):
         self.huber_delta = retarget_config.get('huber_delta', 2.0)
         self.norm_delta = retarget_config.get('norm_delta', 0.04)
 
-        # Load URDF
-        urdf_path = str((_PACKAGE_ROOT / f"wuji-description/hand/body/urdf/{self.hand_side}.urdf").resolve())
+        # Load URDF. Honor optimizer.urdf_path (e.g. a WH120 model) up front so the
+        # link-name resolution and FK index building below run against the actual
+        # hand; otherwise use the bundled default URDF for this side. Loading the
+        # override here (rather than swapping it in after indices are built) is what
+        # lets a differently-named URDF + optimizer.link_naming resolve correctly.
+        urdf_override = opt_config.get('urdf_path')
+        if urdf_override:
+            urdf_path = Path(urdf_override)
+            if not urdf_path.is_absolute():
+                yaml_dir = config.get('__yaml_dir')
+                if yaml_dir is None:
+                    raise RuntimeError(
+                        "optimizer.urdf_path is relative but config['__yaml_dir'] not set; "
+                        "use Retargeter.from_yaml or set __yaml_dir explicitly"
+                    )
+                urdf_path = (Path(yaml_dir) / urdf_path).resolve()
+            if not urdf_path.exists():
+                raise FileNotFoundError(f"optimizer.urdf_path not found: {urdf_path}")
+            urdf_path = str(urdf_path)
+        else:
+            urdf_path = str((_PACKAGE_ROOT / f"wuji-description/hand/body/urdf/{self.hand_side}.urdf").resolve())
         self.robot = RobotWrapper(urdf_path, hand_side=self.hand_side)
         self.num_joints = self.robot.model.nq
 
@@ -203,17 +222,60 @@ class BaseOptimizer(ABC):
         self.opt.set_lower_bounds(self.robot.joint_limits[:, 0].tolist())
         self.opt.set_upper_bounds(self.robot.joint_limits[:, 1].tolist())
 
-        # Link names
-        self.origin_link_name = "palm_link"
-        self.task_link_names = [f"finger{i}_tip_link" for i in range(1, 6)]
-        self.link3_names = [f"finger{i}_link3" for i in range(1, 6)]
-        self.link4_names = [f"finger{i}_link4" for i in range(1, 6)]
+        # Link names (resolved from config; default reproduces wuji-hand / WH110)
+        self._resolve_link_names(config)
 
         # Build link indices
         self._build_link_indices()
 
         # Store last solution for warm start
         self.last_qpos = None
+
+    # Default link-name scheme: the wuji-hand / WH110 convention. get_link_index
+    # additionally tries the "{hand_side}_" prefix, so these unprefixed names
+    # resolve to right_palm_link / right_finger1_link3 / ... on the bundled hands.
+    _DEFAULT_LINK_NAMING = {
+        "prefix": "",
+        "palm": "palm_link",
+        "fingers": ["finger1", "finger2", "finger3", "finger4", "finger5"],
+        "tip": "{finger}_tip_link",
+        "pip": "{finger}_link3",
+        "dip": "{finger}_link4",
+        "link1": "{finger}_link1",
+    }
+
+    def _resolve_link_names(self, config: dict):
+        """Resolve the optimizer's required link names from config.
+
+        Hand URDFs name their links differently — WH110 uses
+        ``right_finger1_link3`` while WH120 uses ``r_index_finger_middle`` — so
+        ``optimizer.link_naming`` maps the optimizer's logical roles (palm and the
+        per-finger tip / PIP / DIP / link1) onto whatever the URDF actually calls
+        them, keeping the retargeting code URDF-agnostic. Omitting the block
+        uses the default WH110 naming.
+
+        ``fingers`` is ordered thumb..pinky. ``prefix`` is
+        prepended to every name (e.g. ``r_``); per-finger templates use
+        ``{finger}``.
+        """
+        naming = dict(self._DEFAULT_LINK_NAMING)
+        naming.update((config.get('optimizer') or {}).get('link_naming') or {})
+        fingers = naming["fingers"]
+        if len(fingers) != 5:
+            raise ValueError(
+                f"optimizer.link_naming.fingers must list exactly 5 fingers "
+                f"(thumb..pinky), got {fingers!r}"
+            )
+        prefix = naming["prefix"]
+
+        def per_finger(template):
+            return [prefix + template.format(finger=f) for f in fingers]
+
+        self.origin_link_name = prefix + naming["palm"]
+        self.task_link_names = per_finger(naming["tip"])
+        self.link3_names = per_finger(naming["pip"])
+        self.link4_names = per_finger(naming["dip"])
+        self.link1_names = per_finger(naming["link1"])
 
     def _build_link_indices(self):
         """Build link indices for FK computation."""

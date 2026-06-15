@@ -67,8 +67,8 @@ class Retargeter:
         # Rotation adjustment
         self.rotation_xyz = retarget_config.get('mediapipe_rotation', {})
 
-        # Optional keypoint offsets (cm -> meters). Default zero -> byte-identical
-        # to the pre-offset retarget pipeline.
+        # Optional keypoint offsets (cm -> meters). Default zero leaves the
+        # keypoints unchanged.
         wrist_offset_cm = retarget_config.get('wrist_offset_cm', [0.0, 0.0, 0.0])
         thumb_offset_cm = retarget_config.get('thumb_offset_cm', [0.0, 0.0, 0.0])
         self.wrist_offset_m = np.array(wrist_offset_cm, dtype=np.float64) / 100.0

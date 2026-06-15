@@ -87,6 +87,29 @@ class RobotWrapper:
             f"Available: {[self.model.frames[i].name for i in range(self.model.nframes)]}"
         )
 
+    def get_actuated_qpos_index(self, link_name: str) -> int:
+        """Return the qpos index of the joint that actuates ``link_name``.
+
+        A link's parent joint is the joint directly above it in the kinematic
+        chain (the joint whose URDF ``<child>`` is this link). For the wuji
+        finger chain ``link1->link2->link3->link4``, ``finger{i}_link3``'s parent
+        joint is the PIP joint and ``finger{i}_link4``'s is the DIP joint.
+
+        Resolving the qpos slot this way (instead of hardcoding indices) keeps the
+        mapping correct when a custom URDF declares joints in a different order or
+        with a non-uniform DOF layout. Raises if the link is unknown or its parent
+        joint is not a single-DOF joint.
+        """
+        frame_id = self.get_link_index(link_name)
+        joint_id = self.model.frames[frame_id].parentJoint
+        joint = self.model.joints[joint_id]
+        if joint.nq != 1:
+            raise RuntimeError(
+                f"Parent joint of '{link_name}' ('{self.model.names[joint_id]}') has "
+                f"nq={joint.nq}, expected a single-DOF (revolute/prismatic) joint."
+            )
+        return int(joint.idx_q)
+
     def compute_forward_kinematics(self, qpos: npt.NDArray):
         """Compute forward kinematics for all links."""
         pin.forwardKinematics(self.model, self.data, qpos)

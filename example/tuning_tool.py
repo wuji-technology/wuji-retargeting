@@ -44,8 +44,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from viz import TuningViewer
-from utils.config_paths import resolve_mujoco_model_dir
+from wuji_retargeting.viz import TuningViewer
+from utils.config_paths import resolve_mjcf_path
 
 
 LOGGER = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def run_recording_mode(args):
         hand_side=args.hand,
         retarget_config_path=str(config_path),
         viz_config_path=str(Path(__file__).parent / args.viz_config) if args.viz_config else None,
-        mujoco_model_dir=resolve_mujoco_model_dir(config_path),
+        mjcf_path=resolve_mjcf_path(config_path),
     )
 
     pkl_path = Path(__file__).parent / args.play
@@ -77,7 +77,7 @@ def _run_live_mode(args, input_device, mode_name):
         hand_side=args.hand,
         retarget_config_path=str(config_path),
         viz_config_path=str(Path(__file__).parent / args.viz_config) if args.viz_config else None,
-        mujoco_model_dir=resolve_mujoco_model_dir(config_path),
+        mjcf_path=resolve_mjcf_path(config_path),
     )
 
     hand_key = f"{args.hand}_fingers"
@@ -123,7 +123,9 @@ def _run_live_mode(args, input_device, mode_name):
 
                 if raw_kp is not None and not np.allclose(raw_kp, 0):
                     last_result = viewer._process_frame(raw_kp)
-                    viewer.data.qpos[:] = last_result["qpos"]
+                    # Remap URDF/Pinocchio qpos order -> MJCF order (same as the
+                    # viewer's recording path); identity when orders already match.
+                    viewer.data.qpos[:] = last_result["qpos"][viewer._qpos_perm]
                     mujoco.mj_forward(viewer.model, viewer.data)
             except Exception:
                 LOGGER.exception("Failed to process a live tuning frame")
@@ -209,7 +211,7 @@ def run_video_mode(args):
         hand_side=args.hand,
         retarget_config_path=str(config_path),
         viz_config_path=str(Path(__file__).parent / args.viz_config) if args.viz_config else None,
-        mujoco_model_dir=resolve_mujoco_model_dir(config_path),
+        mjcf_path=resolve_mjcf_path(config_path),
     )
     viewer.play_recording(data, fps=args.fps)
 

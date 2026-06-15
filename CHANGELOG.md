@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2026.6.15]
+
+### Added
+
+- Added Wuji Hand 2 (network-connected) support to `teleop_real.py`. Select the hand model with `--hand-model {wh110,wh120}` (inferred from the config when omitted). The new network hand also accepts `--wh120-ip` (auto-discovers when omitted), `--kp`, `--kd`, and `--current-limit`
+- Added config-driven hand model selection for retargeting. Point the optimizer at any hand via `optimizer.urdf_path` (IK) and `optimizer.mjcf_path` (simulation). `optimizer.link_naming` maps logical link roles (palm, fingertip, PIP, DIP, MCP) onto the URDF's actual link names, so anatomically named hands work without code changes. Joint commands are remapped by name across the viewer, simulation, and hardware paths, so a URDF that declares fingers in a different order still drives the right ones. Ships right- and left-hand Wuji Hand 2 configs. The default Wuji Hand path is unchanged when no override is set
+- Documented Docker usage in the README. No official Dockerfile is shipped. The Wuji SDK reads per-device assets from `~/.wuji`, which must be mounted into the container when using Wuji Glove or real hardware (simulation and replay do not need it)
+
+### Fixed
+
+- Fixed the adaptive analytical optimizer hardcoding finger joint indices, which could silently apply hyperextension and DIP/PIP coupling constraints to the wrong joints on custom hand URDFs. Indices are now resolved from the kinematic chain, with a clear error at load time if the expected finger links are missing. Behavior on the default hand is unchanged
+- Fixed `pip install .` silently producing an `UNKNOWN` package with no dependencies on systems with older setuptools. On Ubuntu 22.04 also run `pip install -U pip` for the fix to take effect — see the Ubuntu note in the README
+
 ## [2026.6.10]
 
 ### Fixed
@@ -91,7 +104,8 @@ Initial public release.
 - Added real hardware control example
 - Added YAML-based configuration system with per-finger scaling and pinch thresholds
 
-[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.10...HEAD
+[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.15...HEAD
+[2026.6.15]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.10...v2026.6.15
 [2026.6.10]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.26...v2026.6.10
 [2026.05.26]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.23...v2026.05.26
 [2026.05.23]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.18...v2026.05.23
