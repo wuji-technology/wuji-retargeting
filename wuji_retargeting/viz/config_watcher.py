@@ -4,7 +4,6 @@ Monitors a YAML configuration file for changes and triggers reload callbacks.
 Uses file modification time polling (zero external dependencies).
 """
 
-import os
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -134,7 +133,11 @@ class ConfigWatcher:
 
         if self.on_change is not None:
             changes = _diff_configs(old_config, new_config)
-            self.on_change(new_config, changes)
+            try:
+                self.on_change(new_config, changes)
+            except Exception as e:
+                if self.verbose:
+                    print(f"[ConfigWatcher] on_change callback failed: {e}")
 
         return True, new_config
 
@@ -159,7 +162,7 @@ class ConfigWatcher:
             if param_path.startswith("retarget."):
                 lookup_key = param_path[len("retarget."):]
 
-            desc = get_param_description(lookup_key, lang="zh")
+            desc = get_param_description(lookup_key)
             print(f"  {param_path}: {old_val} -> {new_val}")
             if desc:
                 print(f"    {desc}")

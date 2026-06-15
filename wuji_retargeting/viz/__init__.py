@@ -11,10 +11,17 @@ Usage:
     viewer.play_recording(data)
 """
 
-from .tuning_viewer import TuningViewer
 from .skeleton_drawer import SkeletonDrawer
 from .config_watcher import ConfigWatcher
 from .param_map import PARAM_FINGER_MAP, get_param_description
+
+
+def __getattr__(name):
+    if name == "TuningViewer":
+        from .tuning_viewer import TuningViewer
+        return TuningViewer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "TuningViewer",

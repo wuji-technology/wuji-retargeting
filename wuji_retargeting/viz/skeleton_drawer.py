@@ -108,7 +108,8 @@ class SkeletonDrawer:
 
     TIP_INDICES = [4, 8, 12, 16, 20]
 
-    def __init__(self, model, data, hand_side: str, viz_config: dict = None):
+    def __init__(self, model, data, hand_side: str, viz_config: dict = None,
+                 link_naming: dict = None):
         """Initialize skeleton drawer.
 
         Args:
@@ -116,10 +117,15 @@ class SkeletonDrawer:
             data: MuJoCo data
             hand_side: 'left' or 'right'
             viz_config: Visualization config dict (skeleton section from tuning_viz.yaml)
+            link_naming: Optional optimizer.link_naming block. When set (e.g. WH120's
+                r_wrist / r_index_finger_* scheme), the MediaPipe->body map and
+                the wrist-body lookup are built from it so the overlay matches the
+                optimizer's link resolution. Omitting it uses the default WH110 map.
         """
         self.model = model
         self.data = data
         self.hand_side = hand_side.lower()
+        self._mp_to_robot, self._wrist_candidates = self._resolve_body_names(link_naming)
         self._build_robot_link_ids()
         self.update_config(viz_config or {})
 
@@ -150,10 +156,46 @@ class SkeletonDrawer:
         self.highlight_indices = set()
         self.draw_skeleton_lines = viz_config.get("draw_lines", True)
 
+    def _resolve_body_names(self, link_naming: dict):
+        """Resolve (MediaPipe-index -> body-name map, wrist-body candidates).
+
+        With ``optimizer.link_naming`` (e.g. WH120's anatomical scheme) both are
+        built from the templates: MP wrist->palm, and per finger
+        MCP->link1, PIP->pip, DIP->dip, TIP->tip. Without it, fall back to the
+        default WH110 map + base/palm candidate list.
+        """
+        if not link_naming:
+            wrist_candidates = [
+                f"{self.hand_side}_base_link",
+                "base_link",
+                "hand_base",
+                "palm_link",
+                f"{self.hand_side}_palm_link",
+            ]
+            return dict(MEDIAPIPE_TO_ROBOT_LINK), wrist_candidates
+
+        prefix = link_naming.get("prefix", "")
+        fingers = link_naming["fingers"]
+        palm = prefix + link_naming["palm"]
+
+        def nm(role, finger):
+            return prefix + link_naming[role].format(finger=finger)
+
+        mp_to_robot = {0: palm}
+        for k, finger in enumerate(fingers):
+            mp_to_robot[1 + 4 * k] = nm("link1", finger)  # MCP
+            mp_to_robot[2 + 4 * k] = nm("pip", finger)    # PIP
+            mp_to_robot[3 + 4 * k] = nm("dip", finger)    # DIP
+            mp_to_robot[4 + 4 * k] = nm("tip", finger)    # TIP
+        # The MJCF often fuses the wrist into the root body and drops *_tip bodies,
+        # so the MANO-frame body may be the configured palm (URDF) OR the root
+        # "{prefix}base" (MJCF). Tip MP indices that have no body are skipped.
+        return mp_to_robot, [palm, prefix + "base"]
+
     def _build_robot_link_ids(self):
         """Build mapping from MediaPipe index to MuJoCo body ID."""
         self.robot_body_ids = {}
-        for mp_idx, link_name in MEDIAPIPE_TO_ROBOT_LINK.items():
+        for mp_idx, link_name in self._mp_to_robot.items():
             body_id = mujoco.mj_name2id(
                 self.model, mujoco.mjtObj.mjOBJ_BODY, link_name
             )
@@ -165,8 +207,9 @@ class SkeletonDrawer:
             if body_id >= 0:
                 self.robot_body_ids[mp_idx] = body_id
 
-        # Find wrist body ID
-        for name in ("hand_base", "palm_link", f"{self.hand_side}_palm_link"):
+        # Find MANO-frame body. With link_naming this is the configured palm
+        # (e.g. r_wrist); otherwise try base_link variants then palm_link.
+        for name in self._wrist_candidates:
             wrist_id = mujoco.mj_name2id(
                 self.model, mujoco.mjtObj.mjOBJ_BODY, name
             )
@@ -174,11 +217,14 @@ class SkeletonDrawer:
                 self.wrist_body_id = wrist_id
                 break
         else:
-            self.wrist_body_id = 0
+            raise ValueError(
+                "Failed to find wrist body for MANO-frame visualization. "
+                f"Tried {self._wrist_candidates}"
+            )
 
     def get_robot_keypoints(self) -> np.ndarray:
         """Get robot joint positions from FK (21, 3)."""
-        positions = np.zeros((21, 3), dtype=np.float64)
+        positions = np.full((21, 3), np.nan, dtype=np.float64)
         for mp_idx, body_id in self.robot_body_ids.items():
             positions[mp_idx] = self.data.xpos[body_id].copy()
         return positions
@@ -256,11 +302,16 @@ class SkeletonDrawer:
             world_kp = (mediapipe_kp @ wrist_rot.T) + wrist_pos
             self._draw_pinch_indicators(scene, world_kp, pinch_alphas)
 
+        # MANO coordinate axes at wrist (RGB = XYZ)
+        self._draw_mano_axes(scene, wrist_pos, wrist_rot)
+
     def _draw_points(self, scene, positions, color, size):
         """Draw spheres at keypoint positions."""
         for i in range(len(positions)):
             if scene.ngeom >= scene.maxgeom:
                 break
+            if not np.all(np.isfinite(positions[i])):
+                continue
             # Use highlight color if this keypoint is highlighted
             draw_color = color
             if i in self.highlight_indices:
@@ -283,10 +334,12 @@ class SkeletonDrawer:
                 break
             start = keypoints[start_idx]
             end = keypoints[end_idx]
+            if not (np.all(np.isfinite(start)) and np.all(np.isfinite(end))):
+                continue
             mid = (start + end) / 2
             direction = end - start
             length = np.linalg.norm(direction)
-            if length < 1e-6:
+            if not np.isfinite(length) or length < 1e-6:
                 continue
             direction = direction / length
             rot_matrix = _compute_arrow_rotation_matrix(direction)
@@ -300,13 +353,41 @@ class SkeletonDrawer:
             )
             scene.ngeom += 1
 
+    def _draw_mano_axes(self, scene, wrist_pos, wrist_rot, length=0.04, width=0.0015):
+        """Draw RGB XYZ axes at wrist for MANO frame reference.
+
+        Right hand: +x into palm, +y thumb side, +z finger direction.
+        Left hand:  +x out of palm, +y small-finger side, +z finger direction.
+        """
+        colors = [
+            np.array([1.0, 0.0, 0.0, 0.9], dtype=np.float32),  # X: red
+            np.array([0.0, 1.0, 0.0, 0.9], dtype=np.float32),  # Y: green
+            np.array([0.0, 0.0, 1.0, 0.9], dtype=np.float32),  # Z: blue
+        ]
+        for axis_idx in range(3):
+            if scene.ngeom >= scene.maxgeom:
+                break
+            direction_world = wrist_rot[:, axis_idx]
+            end = wrist_pos + direction_world * length
+            mid = (wrist_pos + end) / 2
+            rot_matrix = _compute_arrow_rotation_matrix(direction_world)
+            mujoco.mjv_initGeom(
+                scene.geoms[scene.ngeom],
+                mujoco.mjtGeom.mjGEOM_CAPSULE,
+                np.array([width, length / 2, 0]),
+                mid.astype(np.float64),
+                rot_matrix.flatten().astype(np.float64),
+                colors[axis_idx],
+            )
+            scene.ngeom += 1
+
     def _draw_pinch_indicators(self, scene, mediapipe_world, pinch_alphas):
         """Draw red spheres at fingertips proportional to pinch alpha."""
         for i, tip_idx in enumerate(self.TIP_INDICES):
             if scene.ngeom >= scene.maxgeom:
                 break
             alpha = pinch_alphas[i]
-            if alpha > 0.01:
+            if alpha > 0.01 and np.all(np.isfinite(mediapipe_world[tip_idx])):
                 red_color = np.array([1.0, 0.0, 0.0, alpha * 0.8], dtype=np.float32)
                 mujoco.mjv_initGeom(
                     scene.geoms[scene.ngeom],

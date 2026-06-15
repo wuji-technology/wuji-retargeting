@@ -1,9 +1,13 @@
 # 4.3 retargeting参数微调
 
-retargeting参数配置文件：
-在本仓库路径下：
-- `public/example/config/adaptive_analytical_wuji_glove_left.yaml`
-- `public/example/config/adaptive_analytical_wuji_glove_right.yaml`
+retargeting参数配置文件，在本仓库 `public/example/config/` 路径下，**按手型选择对应文件**：
+
+| 手型 | 左手 | 右手 |
+|------|------|------|
+| Wuji Hand（默认） | `adaptive_analytical_wuji_glove_left.yaml` | `adaptive_analytical_wuji_glove_right.yaml` |
+| Wuji Hand 2（WH120） | `adaptive_analytical_wuji_glove_wh120_left.yaml` | `adaptive_analytical_wuji_glove_wh120_right.yaml` |
+
+> **务必确认改对了文件**：WH120 的配置在带 `wh120` 的文件里，它通过 `optimizer.urdf_path / mjcf_path / link_naming` 指向 Wuji Hand 2 模型；改错文件（例如给 WH120 调参却编辑了默认 Wuji Hand 的 yaml）不会生效。下面 `tuning_tool.py` 的启动也要相应用 `--config` 指定 WH120 文件（见 §1）。
 
 所有可调参数都在 YAML 的 `retarget` 块下。所有参数调整都建议先启动 `tuning_tool.py`，再修改 YAML，保存后通过可视化结果确认效果。优先调整几何修正 `segment_scaling`。
 
@@ -18,21 +22,25 @@ retargeting参数配置文件：
 ```bash
 cd public/example
 
-# 右手 Wuji Glove，默认会加载 config/adaptive_analytical_wuji_glove_right.yaml
+# === Wuji Hand（默认手型）===
+# 不带 --config 时，--wuji-glove 默认加载 config/adaptive_analytical_wuji_glove_<hand>.yaml
 python tuning_tool.py --wuji-glove --hand right --glove-sn <YOUR_SN>
+python tuning_tool.py --wuji-glove --hand left  --glove-sn <YOUR_SN>
 
-# 左手 Wuji Glove，默认会加载 config/adaptive_analytical_wuji_glove_left.yaml
-python tuning_tool.py --wuji-glove --hand left --glove-sn <YOUR_SN>
-
-# 如果需要显式指定配置文件
+# === Wuji Hand 2（WH120）===
+# 必须用 --config 显式指定 wh120 文件，否则会回落到默认 Wuji Hand 配置
 python tuning_tool.py --wuji-glove --hand right --glove-sn <YOUR_SN> \
-  --config config/adaptive_analytical_wuji_glove_right.yaml
+  --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+python tuning_tool.py --wuji-glove --hand left  --glove-sn <YOUR_SN> \
+  --config config/adaptive_analytical_wuji_glove_wh120_left.yaml
 ```
+
+> WH120 调参时，启动命令的 `--config` 与你编辑的 yaml **必须是同一个 wh120 文件**，否则看到的是默认 Wuji Hand 的效果。
 
 使用方法：
 
 1. 启动 `tuning_tool.py`。
-2. 打开对应 YAML，例如 `public/example/config/adaptive_analytical_wuji_glove_right.yaml`。
+2. 打开**与启动命令一致**的那个 YAML：默认 Wuji Hand 用 `adaptive_analytical_wuji_glove_<hand>.yaml`，WH120 用 `adaptive_analytical_wuji_glove_wh120_<hand>.yaml`。
 3. 修改 `retarget` 下的参数并保存。
 4. 工具会热加载配置；观察三层 skeleton 的变化。
 5. 如果结果变好，再继续小步调整；如果变差，回退上一次修改。
@@ -107,7 +115,7 @@ retarget:
 | `norm_delta` | 帧间关节速度正则项权重，软限速 | `0.04` | ↓更跟手但可能抖 / ↑更平滑但更保守 |
 | `pinch_thresholds.d1/d2` | 拇指与指尖距离触发捏合的双阈值（cm）：dist ≥ `d2` 完全 FullHand；dist ≤ `d1` 捏合权重饱和（上限 0.7，剩 30% 仍是 FullHand） | `2.0 / 4.0` | ↓更晚进捏合模式 / ↑更早进捏合模式 |
 | `scaling` | 仅缩放捏合模式下的指尖位置目标（不影响 FullHand 损失和青色 target 显示） | `1.0` | ↓捏合时指尖目标更近 / ↑捏合时指尖目标更远；常规保持 `1.0` |
-| `mediapipe_rotation` | 输入 21 点整体旋转微调，单位度 | 左手 `(5, -5, 20)`；右手 `(-5, -5, -20)` | 用于纠正手套坐标系朝向，小角度微调即可 |
+| `mediapipe_rotation` | 输入 21 点整体旋转微调，单位度 | Wuji Hand：左手 `(5, -5, 20)`、右手 `(-5, -5, -20)`；WH120 因腕部 link 朝向不同，默认值见对应 `wh120` 文件 | 用于纠正手套坐标系朝向；不同手型与左右手的默认值已分别写在各自 yaml 里 |
 | `wrist_offset_cm` / `thumb_offset_cm` | `wrist_offset_cm`：对除拇指外的四指 16 个关键点统一平移；`thumb_offset_cm`：对拇指 4 个关键点统一平移。单位 cm | `[0, 0, 0]` | 当前默认关闭；SDK 已做按 SN 标定，一般不建议客户自行修改 |
 
 ---

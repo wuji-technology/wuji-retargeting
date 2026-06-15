@@ -51,6 +51,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from wuji_retargeting import Retargeter
+from utils.config_paths import resolve_mjcf_path, qpos_reorder_perm
 from input_devices.visionpro import VisionPro
 from input_devices.mediapipe_replay import MediaPipeReplay
 try:
@@ -157,11 +158,18 @@ def run_teleop(
     hand_side = hand_side.lower()
     assert hand_side in {"right", "left"}, "hand_side must be 'right' or 'left'"
 
-    # Load MuJoCo model
-    mjcf_path = (
-        Path(__file__).resolve().parents[1]
-        / "wuji_retargeting" / "wuji-description" / "hand" / "body" / "mjcf" / f"{hand_side}.xml"
-    )
+    # Load MuJoCo model. Honor optimizer.mjcf_path in the config (e.g. a WH120
+    # model) so the sim hand matches the IK hand selected via optimizer.urdf_path;
+    # otherwise fall back to the bundled default hand for this side.
+    config_file = Path(__file__).parent / config_path
+    mjcf_override = resolve_mjcf_path(config_file)
+    if mjcf_override:
+        mjcf_path = Path(mjcf_override)
+    else:
+        mjcf_path = (
+            Path(__file__).resolve().parents[1]
+            / "wuji_retargeting" / "wuji-description" / "hand" / "body" / "mjcf" / f"{hand_side}.xml"
+        )
     if not mjcf_path.exists():
         raise FileNotFoundError(f"MuJoCo model file not found: {mjcf_path}")
 
@@ -187,8 +195,7 @@ def run_teleop(
     viewer.cam.distance = 0.5
     viewer.cam.lookat[:] = [0, 0, 0.05]
 
-    # Load config to get video_input settings if needed
-    config_file = Path(__file__).parent / config_path
+    # Load config to get video_input settings if needed (config_file resolved above)
     with open(config_file, "r") as f:
         full_config = yaml.safe_load(f)
     video_config = full_config.get("video_input", {})
@@ -252,6 +259,28 @@ def run_teleop(
     # Initialize retargeter
     retargeter = Retargeter.from_yaml(str(config_file), hand_side)
 
+    # qpos is in URDF/Pinocchio joint order; data.ctrl is in actuator order. These
+    # differ when the URDF declares fingers in a different order than the MJCF
+    # (e.g. WH120). Remap by joint name so each actuator gets its own joint's
+    # angle; identity when orders match (WH110).
+    _act_joint_order = [
+        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, model.actuator_trnid[i, 0])
+        for i in range(model.nu)
+    ]
+    _qpos_perm = qpos_reorder_perm(
+        retargeter.optimizer.robot.dof_joint_names, _act_joint_order
+    )
+    # If the config declares a custom hand (optimizer.mjcf_path) but the joint names
+    # can't be aligned, qpos_reorder_perm returns None — same as the legitimate
+    # WH110 "no remap" case. Falling back to identity here would silently drive the
+    # wrong joints, so fail loudly when a custom MJCF was actually requested.
+    if mjcf_override and _qpos_perm is None:
+        raise ValueError(
+            "config declares optimizer.mjcf_path but the URDF<->MJCF joint names "
+            "could not be aligned; the sim would drive the wrong joints. Check "
+            "optimizer.link_naming / that urdf_path and mjcf_path describe the same hand."
+        )
+
     # Disable recording when using replay mode
     if input_device_type == "mediapipe_replay" and enable_recording:
         print("Note: Recording disabled in replay mode")
@@ -308,7 +337,9 @@ def run_teleop(
                 fps = frame_count / elapsed
                 print(f"FPS: {fps:.1f}")
 
-            # Set control signals
+            # Set control signals (remap URDF qpos order -> actuator order)
+            if _qpos_perm is not None:
+                qpos = qpos[_qpos_perm]
             if len(qpos) == model.nu:
                 data.ctrl[:] = qpos
             else:

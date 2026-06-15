@@ -27,8 +27,8 @@ import mujoco.viewer
 import numpy as np
 import yaml
 
-from ..retarget import Retargeter
-from ..mediapipe import apply_mediapipe_transformations
+from wuji_retargeting import Retargeter
+from wuji_retargeting.mediapipe import apply_mediapipe_transformations
 from .skeleton_drawer import SkeletonDrawer
 from .config_watcher import ConfigWatcher
 from .param_map import get_affected_fingers
@@ -87,7 +87,8 @@ class TuningViewer:
         hand_side: 'left' or 'right'
         retarget_config_path: Path to retarget YAML config
         viz_config_path: Optional path to visualization YAML config (tuning_viz.yaml)
-        mujoco_model_dir: Optional override for MuJoCo model directory
+        mjcf_path: Optional explicit MJCF path (from optimizer.mjcf_path); falls
+            back to the bundled hand for this side when None.
     """
 
     def __init__(
@@ -95,7 +96,7 @@ class TuningViewer:
         hand_side: str = "left",
         retarget_config_path: str = None,
         viz_config_path: str = None,
-        mujoco_model_dir: str = None,
+        mjcf_path: str = None,
     ):
         self.hand_side = hand_side.lower()
 
@@ -110,6 +111,7 @@ class TuningViewer:
         # Load retarget config
         with open(self.retarget_config_path, "r") as f:
             self.retarget_config = yaml.safe_load(f)
+        self.retarget_config["__yaml_dir"] = str(self.retarget_config_path.parent)
 
         # Load viz config
         self.viz_config = {}
@@ -119,13 +121,17 @@ class TuningViewer:
                 with open(viz_path, "r") as f:
                     self.viz_config = yaml.safe_load(f) or {}
 
-        # Load MuJoCo model
-        if mujoco_model_dir is None:
-            mujoco_model_dir = (
-                Path(__file__).resolve().parents[1]
-                / "wuji-description" / "hand" / "body"
+        # Load MuJoCo model. An explicit mjcf_path (from optimizer.mjcf_path)
+        # supports suffix-named models such as right-wh120.xml; otherwise default
+        # to the bundled hand for this side under the wuji-description submodule.
+        if mjcf_path is not None:
+            mjcf_path = Path(mjcf_path)
+        else:
+            mjcf_path = (
+                Path(__file__).resolve().parents[2]
+                / "wuji_retargeting" / "wuji-description" / "hand" / "body"
+                / "mjcf" / f"{self.hand_side}.xml"
             )
-        mjcf_path = Path(mujoco_model_dir) / "mjcf" / f"{self.hand_side}.xml"
         if not mjcf_path.exists():
             raise FileNotFoundError(f"MuJoCo model not found: {mjcf_path}")
 
@@ -141,11 +147,20 @@ class TuningViewer:
         # Initialize retargeter
         self.retargeter = Retargeter(self.retarget_config.copy(), self.hand_side)
 
-        # Initialize skeleton drawer
+        # Initialize skeleton drawer (pass optimizer.link_naming so the overlay
+        # resolves the same bodies the optimizer uses on custom-named hands).
         skeleton_config = self.viz_config.get("skeleton", {})
+        link_naming = (self.retarget_config.get("optimizer") or {}).get("link_naming")
         self.drawer = SkeletonDrawer(
-            self.model, self.data, self.hand_side, skeleton_config
+            self.model, self.data, self.hand_side, skeleton_config,
+            link_naming=link_naming,
         )
+
+        # The optimizer returns qpos in URDF/Pinocchio joint order, which can
+        # differ from this MJCF's qpos order (e.g. WH120 declares fingers in a
+        # different order). Remap by joint name so data.qpos lands on the right
+        # joints; identity when the two orders already match (e.g. WH110).
+        self._qpos_perm = self._build_qpos_perm()
 
         # Initialize config watcher
         self.config_watcher = ConfigWatcher(
@@ -167,11 +182,35 @@ class TuningViewer:
             "highlight_duration", 1.0
         )
 
+    def _build_qpos_perm(self):
+        """Map optimizer qpos (URDF/Pinocchio order) -> MJCF qpos slots by joint name.
+
+        Returns an index array ``perm`` such that ``data.qpos[:] = qpos[perm]``
+        places each optimizer joint value on the MJCF joint of the same name.
+        Falls back to identity if the joint-name sets don't line up (so behavior
+        is unchanged on hands where they already match).
+        """
+        pin_names = list(self.retargeter.optimizer.robot.dof_joint_names)
+        pin_index = {n: i for i, n in enumerate(pin_names)}
+        perm = np.arange(self.model.nq, dtype=int)
+        try:
+            for j in range(self.model.njnt):
+                name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_JOINT, j)
+                qadr = self.model.jnt_qposadr[j]
+                perm[qadr] = pin_index[name]
+        except (KeyError, TypeError):
+            print("TuningViewer: joint names don't match between URDF and MJCF; "
+                  "using identity qpos order (check optimizer.link_naming / assets).")
+            return np.arange(self.model.nq, dtype=int)
+        return perm
+
     def _reload_retargeter(self, new_config: dict, changes: list):
         """Reload retargeter with new config and highlight affected fingers."""
+        new_config["__yaml_dir"] = str(self.retarget_config_path.parent)
         self.retarget_config = new_config
         self.retargeter = Retargeter(new_config.copy(), self.hand_side)
         self.retargeter.reset_filter()
+        self._qpos_perm = self._build_qpos_perm()
 
         # Highlight affected fingers
         affected_fingers = set()
@@ -229,6 +268,7 @@ class TuningViewer:
         data_or_path,
         fps: float = 30.0,
         hand_key: str = None,
+        trust_pkl: bool = False,
     ):
         """Play a recording with interactive tuning visualization.
 
@@ -236,9 +276,15 @@ class TuningViewer:
             data_or_path: List of frame dicts, or path to .pkl file
             fps: Target playback framerate
             hand_key: Key for hand data in frame dict (default: auto from hand_side)
+            trust_pkl: Allow loading pickle data from a path only when explicitly trusted
         """
         # Load data
         if isinstance(data_or_path, (str, Path)):
+            if not trust_pkl:
+                raise ValueError(
+                    "Refusing to load pickle without explicit trust. "
+                    "Use trust_pkl=True only for files you fully trust."
+                )
             with open(data_or_path, "rb") as f:
                 data = pickle.load(f)
         else:
@@ -264,85 +310,85 @@ class TuningViewer:
             running = False
 
         old_handler = signal.signal(signal.SIGINT, signal_handler)
+        try:
+            print("Tuning Viewer started")
+            print(f"  Config: {self.retarget_config_path.name}")
+            print(f"  Hand: {self.hand_side}")
+            print(f"  Frames: {total_frames}")
+            print(f"  FPS: {fps}")
+            print("")
+            print("Controls:")
+            print(f"  Edit {self.retarget_config_path.name} to tune parameters (auto-reload)")
+            print("  Close viewer window to exit")
+            print(f"{'=' * 50}")
 
-        print(f"Tuning Viewer started")
-        print(f"  Config: {self.retarget_config_path.name}")
-        print(f"  Hand: {self.hand_side}")
-        print(f"  Frames: {total_frames}")
-        print(f"  FPS: {fps}")
-        print(f"")
-        print(f"Controls:")
-        print(f"  Edit {self.retarget_config_path.name} to tune parameters (auto-reload)")
-        print(f"  Close viewer window to exit")
-        print(f"{'=' * 50}")
+            # Initialize model
+            for i in range(self.model.nu):
+                if self.model.actuator_ctrllimited[i]:
+                    ctrl_range = self.model.actuator_ctrlrange[i]
+                    self.data.ctrl[i] = (ctrl_range[0] + ctrl_range[1]) / 2
+                else:
+                    self.data.ctrl[i] = 0.0
+            for _ in range(100):
+                mujoco.mj_step(self.model, self.data)
 
-        # Initialize model
-        for i in range(self.model.nu):
-            if self.model.actuator_ctrllimited[i]:
-                ctrl_range = self.model.actuator_ctrlrange[i]
-                self.data.ctrl[i] = (ctrl_range[0] + ctrl_range[1]) / 2
-            else:
-                self.data.ctrl[i] = 0.0
-        for _ in range(100):
-            mujoco.mj_step(self.model, self.data)
+            with mujoco.viewer.launch_passive(self.model, self.data) as viewer:
+                self._set_camera(viewer)
 
-        with mujoco.viewer.launch_passive(self.model, self.data) as viewer:
-            self._set_camera(viewer)
+                while viewer.is_running() and running:
+                    loop_start = time.perf_counter()
 
-            while viewer.is_running() and running:
-                loop_start = time.perf_counter()
+                    # Check for config changes
+                    changed, new_config = self.config_watcher.check()
+                    if changed:
+                        from .config_watcher import _diff_configs
+                        changes = _diff_configs(self.retarget_config, new_config)
+                        self._reload_retargeter(new_config, changes)
+                        # Re-process current frame with new config
+                        self.retargeter.reset()
+                        if last_result is not None:
+                            raw_kp = data[current_frame].get(hand_key)
+                            if raw_kp is not None and not np.allclose(raw_kp, 0):
+                                last_result = self._process_frame(raw_kp)
+                                self.data.qpos[:] = last_result["qpos"][self._qpos_perm]
+                                mujoco.mj_forward(self.model, self.data)
 
-                # Check for config changes
-                changed, new_config = self.config_watcher.check()
-                if changed:
-                    from .config_watcher import _diff_configs
-                    changes = _diff_configs(self.retarget_config, new_config)
-                    self._reload_retargeter(new_config, changes)
-                    # Re-process current frame with new config
-                    self.retargeter.reset()
-                    if last_result is not None:
-                        raw_kp = data[current_frame].get(hand_key)
+                    # Clear highlight if expired
+                    self._check_highlight_timeout()
+
+                    if not paused:
+                        # Get frame data
+                        frame_data = data[current_frame]
+                        raw_kp = frame_data.get(hand_key)
+
                         if raw_kp is not None and not np.allclose(raw_kp, 0):
                             last_result = self._process_frame(raw_kp)
-                            self.data.qpos[:] = last_result["qpos"]
+
+                            # Set robot qpos
+                            self.data.qpos[:] = last_result["qpos"][self._qpos_perm]
                             mujoco.mj_forward(self.model, self.data)
 
-                # Clear highlight if expired
-                self._check_highlight_timeout()
+                        # Advance frame
+                        current_frame = (current_frame + 1) % total_frames
 
-                if not paused:
-                    # Get frame data
-                    frame_data = data[current_frame]
-                    raw_kp = frame_data.get(hand_key)
+                    # Draw skeletons
+                    if last_result is not None:
+                        with viewer.lock():
+                            self.drawer.draw(
+                                viewer.user_scn,
+                                mediapipe_kp=last_result["mediapipe_kp"],
+                                scaled_kp=last_result["scaled_kp"],
+                                pinch_alphas=last_result.get("pinch_alphas"),
+                            )
 
-                    if raw_kp is not None and not np.allclose(raw_kp, 0):
-                        last_result = self._process_frame(raw_kp)
+                    viewer.sync()
 
-                        # Set robot qpos
-                        self.data.qpos[:] = last_result["qpos"]
-                        mujoco.mj_forward(self.model, self.data)
-
-                    # Advance frame
-                    current_frame = (current_frame + 1) % total_frames
-
-                # Draw skeletons
-                if last_result is not None:
-                    with viewer.lock():
-                        self.drawer.draw(
-                            viewer.user_scn,
-                            mediapipe_kp=last_result["mediapipe_kp"],
-                            scaled_kp=last_result["scaled_kp"],
-                            pinch_alphas=last_result.get("pinch_alphas"),
-                        )
-
-                viewer.sync()
-
-                # Frame rate control
-                elapsed = time.perf_counter() - loop_start
-                if elapsed < frame_time:
-                    time.sleep(frame_time - elapsed)
-
-        signal.signal(signal.SIGINT, old_handler)
+                    # Frame rate control
+                    elapsed = time.perf_counter() - loop_start
+                    if elapsed < frame_time:
+                        time.sleep(frame_time - elapsed)
+        finally:
+            signal.signal(signal.SIGINT, old_handler)
         print(f"\nViewer closed at frame {current_frame}")
 
     def view_single_frame(
@@ -356,7 +402,7 @@ class TuningViewer:
         """
         result = self._process_frame(raw_keypoints)
 
-        self.data.qpos[:] = result["qpos"]
+        self.data.qpos[:] = result["qpos"][self._qpos_perm]
         mujoco.mj_forward(self.model, self.data)
 
         print("Viewing single frame. Close viewer window to exit.")
@@ -372,7 +418,7 @@ class TuningViewer:
                     self._reload_retargeter(new_config, [])
                     self.retargeter.reset()
                     result = self._process_frame(raw_keypoints)
-                    self.data.qpos[:] = result["qpos"]
+                    self.data.qpos[:] = result["qpos"][self._qpos_perm]
                     mujoco.mj_forward(self.model, self.data)
 
                 self._check_highlight_timeout()

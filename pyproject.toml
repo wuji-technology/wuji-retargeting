@@ -1,6 +1,16 @@
+# PEP 517/518 build backend. Required so PEP 621 [project] metadata below is
+# honored: with this table absent, pip falls back to setuptools.build_meta:__legacy__
+# plus whatever setuptools the host has. On Ubuntu 22.04 stock (setuptools 59.6,
+# pre-PEP 621) that silently builds an UNKNOWN-0.0.0 wheel and drops every
+# [project.dependencies] entry. Pinning setuptools>=61 forces a backend that
+# actually parses [project].
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "wuji-retargeting"
-version = "2026.6.10"
+version = "2026.6.15"
 description = "High-precision hand pose retargeting system for WujiHand"
 readme = "README.md"
 requires-python = ">=3.10"

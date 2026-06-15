@@ -35,6 +35,38 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+> **Ubuntu 22.04 note.** The distro's stock `pip` (22.0.2) has a build-isolation
+> bug that can install this package as `UNKNOWN 0.0.0` with none of its
+> dependencies (even with a correct `[build-system]`). Upgrade pip first:
+> `python3 -m pip install -U pip`, then run the install commands above.
+
+### Docker
+
+There is **no official Dockerfile** for wuji-retargeting. If you need to run it in
+a container, build your own image — the [Installation](#installation) steps work
+unchanged inside the container.
+
+One caveat for the live/hardware paths: the package's own kinematics URDF ships
+with the `wuji-description` submodule and is therefore already inside the image,
+but the **Wuji SDK** (`wuji_sdk` for the Wuji Glove, `wujihandpy` for the real
+hand) reads *per-device* assets from `$HOME/.wuji` on the host — for example the
+device URDF `~/.wuji/sdk/models/<serial>_hand.urdf` and parameters
+`~/.wuji/sdk/params/<serial>.toml`, which are provisioned by Wuji Studio. These
+files do not exist in a fresh container, so `wujihandpy.Hand()` and the glove
+connection will fail unless you mount that directory in:
+
+```bash
+docker run --rm -it \
+    -v ~/.wuji:/root/.wuji \
+    your-retargeting-image
+```
+
+Mount the host's `~/.wuji` to the container user's home (`/root/.wuji` when
+running as root; adjust if your image uses a different user). Real-hardware and
+glove paths additionally need device connectivity (USB passthrough or host
+networking, depending on your setup). The simulation/replay paths
+(e.g. `teleop_sim.py --play data/avp1.pkl`) do **not** require `~/.wuji`.
+
 ### Running
 
 Wuji Glove is the recommended live input path for current development and demos.
@@ -144,6 +176,34 @@ mjpython tuning_tool.py --wuji-glove --hand right --glove-sn <YOUR_SN>
 ```
 
 The Wuji Glove path adds per-hand configs (`adaptive_analytical_wuji_glove_left.yaml` / `adaptive_analytical_wuji_glove_right.yaml`) and supports neutral-pose offset calibration via `calibrate_offset.py`.
+
+#### Hand model: WH110 (default) and WH120
+
+The commands above drive the **WH110** hand — it is the default, no extra flag needed. To drive a **WH120** hand, pass its config (`adaptive_analytical_wuji_glove_wh120_{right,left}.yaml`). That config points the optimizer at the WH120 model via `optimizer.urdf_path` (IK) and `optimizer.mjcf_path` (simulation), and maps the WH120 anatomical link names through `optimizer.link_naming`, so no code change is needed. `teleop_real.py` infers `--hand-model wh120` from the config automatically.
+
+```bash
+cd example
+
+# Tuning (interactive GUI)
+mjpython tuning_tool.py --wuji-glove --hand right --glove-sn <YOUR_SN> \
+    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+
+# Simulation
+python teleop_sim.py --input wuji_glove --hand right --glove-sn <YOUR_SN> \
+    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+
+# Real hardware — WH120 is a networked "Wuji Hand 2" (Ethernet via wuji_sdk),
+# not the USB path WH110 uses. With one hand online it is auto-discovered:
+python teleop_real.py --input wuji_glove --hand right --glove-sn <YOUR_SN> \
+    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+
+# If multiple WH120 hands are online, choose one explicitly by address:
+python teleop_real.py --input wuji_glove --hand right --glove-sn <YOUR_SN> \
+    --wh120-ip <hand-ip>:50001 \
+    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+```
+
+Use `--hand left` with `adaptive_analytical_wuji_glove_wh120_left.yaml` for the left hand. WH120 and WH110 firmware must match the installed `wuji_sdk`; mismatched firmware fails fast at connect with a clear error.
 
 ### Custom Input Devices
 
