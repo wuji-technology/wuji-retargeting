@@ -79,11 +79,11 @@ except ImportError:
 # =============================================================================
 # Hardware backends.
 #
-# WH110 connects over USB-CDC via wujihandpy.Hand; WH120 is a networked
+# Wuji Hand connects over USB-CDC via wujihandpy.Hand; Wuji Hand 2 is a networked
 # "Wuji Hand 2" reached over Ethernet via wuji_sdk.SdkManager. Both are wrapped
 # behind a uniform { send(qpos), close() } interface so the teleop loop dispatches
 # on --hand-model without caring about the transport. close() is called from a
-# finally block so Ctrl+C also runs cleanup and the WH120 session is not leaked.
+# finally block so Ctrl+C also runs cleanup and the Wuji Hand 2 session is not leaked.
 # =============================================================================
 from typing import Optional
 
@@ -92,7 +92,7 @@ from typing import Optional
 # public release. Feeding an unvalidated sign flip / offset straight to the MIT
 # controller can drive a real joint in the wrong direction or past its safe range,
 # and it cannot be previewed in simulation — too dangerous for an end-user knob.
-# WH120 runs with the validated default joint mapping (firmware == retargeted qpos).
+# Wuji Hand 2 runs with the validated default joint mapping (firmware == retargeted qpos).
 
 
 def _set_with_retry(desc, fn, attempts=3, backoff=0.6):
@@ -112,13 +112,13 @@ def _set_with_retry(desc, fn, attempts=3, backoff=0.6):
         except Exception:
             if i == attempts - 1:
                 raise
-            print(f"WH120 init: {desc} not responding "
+            print(f"Wuji Hand 2 init: {desc} not responding "
                   f"(attempt {i + 1}/{attempts}); bridge settling, retrying in {backoff}s...")
             time.sleep(backoff)
 
 
-class Wh110Backend:
-    """Hardware backend for WH110 via wujihandpy (USB-CDC)."""
+class WujiHandBackend:
+    """Hardware backend for Wuji Hand via wujihandpy (USB-CDC)."""
 
     def __init__(self, hand_serial: str = ""):
         self._hand = (
@@ -139,8 +139,8 @@ class Wh110Backend:
             self._hand.write_joint_enabled(False)
 
 
-class Wh120Backend:
-    """Hardware backend for WH120 via wuji_sdk (networked Wuji Hand 2)."""
+class WujiHand2Backend:
+    """Hardware backend for Wuji Hand 2 via wuji_sdk (networked Wuji Hand 2)."""
 
     _ENABLE_TIMEOUT_SEC = 5.0
     _INVERTER_READY_STATE = 4
@@ -158,13 +158,13 @@ class Wh120Backend:
             from wuji_sdk import SdkManager
         except ImportError as e:
             raise RuntimeError(
-                "wuji_sdk not importable. Install the WH120 SDK wheel."
+                "wuji_sdk not importable. Install the Wuji Hand 2 SDK wheel."
             ) from e
 
         self._sdk = wuji_sdk
         self._manager = SdkManager.instance()
 
-        # Connection: explicit --wh120-ip wins. Otherwise scan for Wuji Hand 2
+        # Connection: explicit --wuji-hand-2-ip wins. Otherwise scan for Wuji Hand 2
         # devices (SN starts "WH"; gloves are "WG"). One hand -> connect it. Several
         # hands online (bimanual) -> pick the one whose reported handedness matches
         # --hand. We can't use connect(handedness=) directly (it also matches the
@@ -173,16 +173,18 @@ class Wh120Backend:
         # rest. Probing only opens a session (no enable / motion).
         t0 = time.monotonic()
         if ip:
-            print(f"WH120 init: connect by address ip={ip}")
+            print(f"Wuji Hand 2 init: connect by address ip={ip}")
             self._hand = self._manager.connect(address=ip, device_name="wuji_hand_2")
         else:
-            print("WH120 init: no --wh120-ip; scanning for a wuji_hand_2 on the network...")
+            print("Wuji Hand 2 init: no --wuji-hand-2-ip; scanning for a wuji_hand_2 on the network...")
+            # "WH" is the hardware serial-number prefix burned into the device (not a product
+            # codename); scan() filters discovered devices by it. Keep as-is.
             hands = [d for d in self._manager.scan() if str(d.sn).upper().startswith("WH")]
             if not hands:
                 raise RuntimeError("no Wuji Hand 2 found on the network; check power/network.")
             if len(hands) == 1:
                 d = hands[0]
-                print(f"WH120 init: discovered {d.sn} at {d.address}")
+                print(f"Wuji Hand 2 init: discovered {d.sn} at {d.address}")
                 self._hand = self._manager.connect(address=d.address, device_name="wuji_hand_2")
             else:
                 want = (handedness or "").lower()
@@ -190,9 +192,9 @@ class Wh120Backend:
                     listing = ", ".join(f"{d.sn}@{d.address}" for d in hands)
                     raise RuntimeError(
                         f"{len(hands)} hands online ({listing}); pass --hand left/right "
-                        f"or --wh120-ip <address:port>."
+                        f"or --wuji-hand-2-ip <address:port>."
                     )
-                print(f"WH120 init: {len(hands)} hands online; selecting the {want} one by handedness...")
+                print(f"Wuji Hand 2 init: {len(hands)} hands online; selecting the {want} one by handedness...")
                 self._hand = None
                 for d in hands:
                     h = self._manager.connect(address=d.address, device_name="wuji_hand_2")
@@ -201,19 +203,19 @@ class Wh120Backend:
                     except Exception:
                         side = "?"
                     if side == want:
-                        print(f"WH120 init: matched {want} hand {d.sn} at {d.address}")
+                        print(f"Wuji Hand 2 init: matched {want} hand {d.sn} at {d.address}")
                         self._hand = h
                         break
-                    print(f"WH120 init:   {d.sn} reports '{side}', skipping")
+                    print(f"Wuji Hand 2 init:   {d.sn} reports '{side}', skipping")
                     h.disconnect()
                     time.sleep(0.2)  # let the device_name bridge fully release
                 if self._hand is None:
                     listing = ", ".join(str(d.sn) for d in hands)
                     raise RuntimeError(
-                        f"no {want} Wuji Hand 2 among [{listing}]; pass --wh120-ip <address:port>."
+                        f"no {want} Wuji Hand 2 among [{listing}]; pass --wuji-hand-2-ip <address:port>."
                     )
         print(
-            f"WH120 init: connect done in {time.monotonic() - t0:.3f}s "
+            f"Wuji Hand 2 init: connect done in {time.monotonic() - t0:.3f}s "
             f"sn={self._hand.serial_number}"
         )
 
@@ -223,8 +225,8 @@ class Wh120Backend:
         try:
             n_online = self._hand.online_joints_count().get()
             if n_online == 0:
-                raise RuntimeError("WH120: 0 joints online — check device power/network")
-            print(f"WH120 connected: {n_online}/20 joints online")
+                raise RuntimeError("Wuji Hand 2: 0 joints online — check device power/network")
+            print(f"Wuji Hand 2 connected: {n_online}/20 joints online")
 
             # Settle before mode change.
             time.sleep(0.5)
@@ -248,7 +250,7 @@ class Wh120Backend:
                 ),
             )
             self._hand.enable()
-            print(f"WH120 init: enable() sent")
+            print(f"Wuji Hand 2 init: enable() sent")
 
             # Wait until all live joints reach inverter_state=4 (ready).
             deadline = time.monotonic() + self._ENABLE_TIMEOUT_SEC
@@ -268,7 +270,7 @@ class Wh120Backend:
                     enabled = True
                     break
             if not enabled:
-                print("WH120: enable timeout. Per-joint state:")
+                print("Wuji Hand 2: enable timeout. Per-joint state:")
                 for i, d in enumerate(last_diags):
                     if d is not None:
                         fi, ji = divmod(i, 4)
@@ -277,8 +279,8 @@ class Wh120Backend:
                             f"inverter_state={d.inverter_state} vbus={d.vbus:.2f}"
                         )
                 self._hand.disable()
-                raise RuntimeError(f"WH120: enable timeout after {self._ENABLE_TIMEOUT_SEC}s")
-            print(f"WH120 enabled (kp={kp}, kd={kd}, current_limit={current_limit}A)")
+                raise RuntimeError(f"Wuji Hand 2: enable timeout after {self._ENABLE_TIMEOUT_SEC}s")
+            print(f"Wuji Hand 2 enabled (kp={kp}, kd={kd}, current_limit={current_limit}A)")
             # publisher creation is post-enable; keep it INSIDE this guard so a
             # failure here also tears the session down instead of leaking it.
             self._publisher = self._hand.joint_command().publisher()
@@ -308,24 +310,26 @@ class Wh120Backend:
 
 
 def _infer_hand_model(config_path) -> str:
-    """Infer 'wh120' vs 'wh110' from a retarget config.
+    """Infer 'wuji_hand_2' vs 'wuji_hand' from a retarget config.
 
-    A WH120 config overrides the optimizer's hand assets (``urdf_path`` /
-    ``mjcf_path``) to a WH120 model, and the filename conventionally carries
-    ``wh120``. Anything else is treated as the default WH110. Used only when
-    ``--hand-model`` is omitted, so passing a WH120 config selects the WH120
-    backend without a separate flag.
+    A Wuji Hand 2 config overrides the optimizer's hand assets (``urdf_path`` /
+    ``mjcf_path``) to the Wuji Hand 2 model, whose assets live under ``hand2/``
+    in the wuji-description package. Anything else is treated as the default
+    Wuji Hand. Used only when ``--hand-model`` is omitted, so passing a Wuji
+    Hand 2 config selects that backend without a separate flag.
     """
     try:
         with open(config_path, "r") as f:
             cfg = yaml.safe_load(f) or {}
     except FileNotFoundError:
-        return "wh110"
+        return "wuji_hand"
     opt = cfg.get("optimizer") or {}
     blob = " ".join(
         str(x) for x in (opt.get("urdf_path"), opt.get("mjcf_path"), config_path)
     )
-    return "wh120" if "wh120" in blob.lower() else "wh110"
+    # Key off the Wuji Hand 2 asset directory (``hand2/``) rather than the file
+    # name: the asset path stays stable even if the config file is renamed.
+    return "wuji_hand_2" if "hand2" in blob.lower() else "wuji_hand"
 
 
 def run_tuning_mode(
@@ -392,10 +396,10 @@ def run_teleop(
     show_video: bool = False,
     device_name: str = "glove",
     glove_sn: str = "",
-    # Hardware backend selection + WH120 connection params.
-    hand_model: str = "wh110",
+    # Hardware backend selection + Wuji Hand 2 connection params.
+    hand_model: str = "wuji_hand",
     hand_serial: str = "",
-    wh120_ip: str = "",
+    wuji_hand_2_ip: str = "",
     kp: float = 3.0,
     kd: float = 0.1,
     current_limit: float = 1.5,
@@ -418,7 +422,7 @@ def run_teleop(
     """
     hand_side = hand_side.lower()
     assert hand_side in {"right", "left"}, "hand_side must be 'right' or 'left'"
-    assert hand_model in {"wh110", "wh120"}, f"hand_model must be 'wh110' or 'wh120', got {hand_model}"
+    assert hand_model in {"wuji_hand", "wuji_hand_2"}, f"hand_model must be 'wuji_hand' or 'wuji_hand_2', got {hand_model}"
 
     # backend/input_device are set up front so the finally can always check them and
     # so a failure during setup never leaves a reference unbound. The hand is
@@ -492,9 +496,9 @@ def run_teleop(
     retargeter = Retargeter.from_yaml(str(config_file), hand_side)
 
     # qpos comes out in the URDF/Pinocchio joint order, which can differ from the
-    # device's order (e.g. WH120 declares fingers index-first). Remap by joint
+    # device's order (e.g. Wuji Hand 2 declares fingers index-first). Remap by joint
     # name to the MJCF joint order (== the device's finger1..5 indexing) so the
-    # commanded angles land on the right joints. Identity when orders match (WH110)
+    # commanded angles land on the right joints. Identity when orders match (Wuji Hand)
     # or when the config sets no mjcf_path.
     mjcf_path = resolve_mjcf_path(config_file)
     _qpos_perm = qpos_reorder_perm(
@@ -503,9 +507,9 @@ def run_teleop(
     )
     # A declared optimizer.mjcf_path means a custom hand whose joint order MUST be
     # remapped; if the names can't be aligned, qpos_reorder_perm returns None — the
-    # SAME value as the legitimate WH110 "no mjcf_path" case. Driving the hand on
+    # SAME value as the legitimate Wuji Hand "no mjcf_path" case. Driving the hand on
     # that ambiguous None would silently move the wrong joints, so fail loudly here.
-    # (WH110 has no mjcf_path -> mjcf_path is None -> this is skipped.)
+    # (Wuji Hand has no mjcf_path -> mjcf_path is None -> this is skipped.)
     if mjcf_path is not None and _qpos_perm is None:
         raise ValueError(
             "config declares optimizer.mjcf_path but the URDF<->MJCF joint names "
@@ -517,7 +521,7 @@ def run_teleop(
     if _qpos_perm is not None:
         print(f"qpos remap active: URDF order -> MJCF/device order ({_qpos_perm.tolist()})")
     else:
-        print("qpos remap: identity (no optimizer.mjcf_path; WH110-style hand)")
+        print("qpos remap: identity (no optimizer.mjcf_path; Wuji Hand-style hand)")
 
     # Disable recording when using replay mode
     if input_device_type == "mediapipe_replay" and enable_recording:
@@ -532,16 +536,16 @@ def run_teleop(
         # Energize the hand LAST — after every fallible setup step above — and INSIDE
         # this try, so the finally always runs close() (and cleans the input device)
         # even if bring-up itself fails.
-        if hand_model == "wh120":
-            backend = Wh120Backend(
-                ip=wh120_ip,
+        if hand_model == "wuji_hand_2":
+            backend = WujiHand2Backend(
+                ip=wuji_hand_2_ip,
                 kp=kp,
                 kd=kd,
                 current_limit=current_limit,
                 handedness=hand_side,
             )
         else:
-            backend = Wh110Backend(hand_serial=hand_serial)
+            backend = WujiHandBackend(hand_serial=hand_serial)
 
         print(f"Starting teleoperation...")
         print(f"  Config: {config_path}")
@@ -589,7 +593,7 @@ def run_teleop(
                 fps = frame_count / elapsed
                 print(f"FPS: {fps:.1f}")
 
-            # Send to hardware via backend (WH110 or WH120, decided at init).
+            # Send to hardware via backend (Wuji Hand or Wuji Hand 2, decided at init).
             backend.send(qpos if _qpos_perm is None else qpos[_qpos_perm])
 
 
@@ -697,18 +701,18 @@ Examples:
     parser.add_argument('--glove-sn', type=str, default='',
                         help='Wuji Glove serial number (required when multiple Wuji devices online)')
 
-    # Hardware backend selection + WH120 connection params.
-    parser.add_argument('--hand-model', type=str, default=None, choices=['wh110', 'wh120'],
-                        help='Hand hardware model: wh110 (USB via wujihandpy) or wh120 (networked via wuji_sdk). '
-                             'Default: inferred from the config (WH120 if it overrides the hand to a WH120 model, else WH110).')
+    # Hardware backend selection + Wuji Hand 2 connection params.
+    parser.add_argument('--hand-model', type=str, default=None, choices=['wuji_hand', 'wuji_hand_2'],
+                        help='Hand hardware model: wuji_hand (USB via wujihandpy) or wuji_hand_2 (networked via wuji_sdk). '
+                             'Default: inferred from the config (Wuji Hand 2 if it overrides the hand to a Wuji Hand 2 model, else Wuji Hand).')
     parser.add_argument('--hand-serial', type=str, default='',
-                        help='WH110 hand serial number (for wujihandpy.Hand selection)')
-    parser.add_argument('--wh120-ip', type=str, default='',
-                        help='WH120 SDK address, e.g. 192.168.1.111:50001 (run a scan to find it)')
-    parser.add_argument('--kp', type=float, default=3.0, help='WH120 MIT kp (default: 3.0)')
-    parser.add_argument('--kd', type=float, default=0.1, help='WH120 MIT kd (default: 0.1)')
+                        help='Wuji Hand hand serial number (for wujihandpy.Hand selection)')
+    parser.add_argument('--wuji-hand-2-ip', type=str, default='',
+                        help='Wuji Hand 2 SDK address, e.g. 192.168.1.111:50001 (run a scan to find it)')
+    parser.add_argument('--kp', type=float, default=3.0, help='Wuji Hand 2 MIT kp (default: 3.0)')
+    parser.add_argument('--kd', type=float, default=0.1, help='Wuji Hand 2 MIT kd (default: 0.1)')
     parser.add_argument('--current-limit', type=float, default=1.5,
-                        help='WH120 per-joint system current limit in amps (SDK sys_current_limit, default: 1.5)')
+                        help='Wuji Hand 2 per-joint system current limit in amps (SDK sys_current_limit, default: 1.5)')
     # NOTE: per-joint calibration (sign/offset) is deliberately not exposed here —
     # an unvalidated sign flip / offset goes straight to the MIT controller on real
     # hardware (and can't be previewed in sim), which is unsafe as a user knob.
@@ -737,18 +741,18 @@ Examples:
         mediapipe_replay_path = "data/avp1.pkl"
 
     # Auto-switch config for non-AVP input devices. For the Wuji Glove, pick the
-    # WH120 config when --hand-model wh120 so the IK hand (urdf_path/mjcf_path in
+    # Wuji Hand 2 config when --hand-model wuji_hand_2 so the IK hand (urdf_path/mjcf_path in
     # that config) matches the physical hand being driven.
     if args.config == 'config/adaptive_analytical_avp.yaml':
         if input_device_type in ("realsense", "video", "zed"):
             args.config = 'config/adaptive_analytical_video.yaml'
         elif input_device_type == "wuji_glove":
-            suffix = "wh120_" if args.hand_model == "wh120" else ""
+            suffix = "wuji_hand_2_" if args.hand_model == "wuji_hand_2" else ""
             args.config = f'config/adaptive_analytical_wuji_glove_{suffix}{args.hand}.yaml'
 
     # Resolve hand model: explicit --hand-model wins; otherwise infer from the
-    # config so that passing a WH120 config (e.g. ..._wh120_right.yaml) selects
-    # the WH120 network backend without also needing --hand-model wh120.
+    # config so that passing a Wuji Hand 2 config (e.g. ..._wuji_hand_2_right.yaml) selects
+    # the Wuji Hand 2 network backend without also needing --hand-model wuji_hand_2.
     if args.hand_model is None:
         args.hand_model = _infer_hand_model(Path(__file__).parent / args.config)
         print(f"--hand-model not given; inferred '{args.hand_model}' from {args.config}")
@@ -790,7 +794,7 @@ Examples:
         glove_sn=args.glove_sn,
         hand_model=args.hand_model,
         hand_serial=args.hand_serial,
-        wh120_ip=args.wh120_ip,
+        wuji_hand_2_ip=args.wuji_hand_2_ip,
         kp=args.kp,
         kd=args.kd,
         current_limit=args.current_limit,

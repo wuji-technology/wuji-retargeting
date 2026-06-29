@@ -8,7 +8,7 @@ resolve_mjcf_path(config_path):
 mjcf_joint_order(mjcf_path) / qpos_reorder_perm(src_names, dst_names):
     Bridge the optimizer's URDF/Pinocchio qpos joint order to a consumer's
     expected order (MJCF / hardware) by joint name, so a URDF that declares
-    joints in a different order than the MJCF/device (e.g. WH120) doesn't
+    joints in a different order than the MJCF/device (e.g. Wuji Hand 2) doesn't
     land joint values on the wrong fingers.
 """
 from __future__ import annotations

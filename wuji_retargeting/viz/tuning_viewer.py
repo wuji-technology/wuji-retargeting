@@ -122,7 +122,7 @@ class TuningViewer:
                     self.viz_config = yaml.safe_load(f) or {}
 
         # Load MuJoCo model. An explicit mjcf_path (from optimizer.mjcf_path)
-        # supports suffix-named models such as right-wh120.xml; otherwise default
+        # supports alternate models such as a Wuji Hand 2 mjcf; otherwise default
         # to the bundled hand for this side under the wuji-description submodule.
         if mjcf_path is not None:
             mjcf_path = Path(mjcf_path)
@@ -157,9 +157,9 @@ class TuningViewer:
         )
 
         # The optimizer returns qpos in URDF/Pinocchio joint order, which can
-        # differ from this MJCF's qpos order (e.g. WH120 declares fingers in a
+        # differ from this MJCF's qpos order (e.g. Wuji Hand 2 declares fingers in a
         # different order). Remap by joint name so data.qpos lands on the right
-        # joints; identity when the two orders already match (e.g. WH110).
+        # joints; identity when the two orders already match (e.g. Wuji Hand).
         self._qpos_perm = self._build_qpos_perm()
 
         # Initialize config watcher

@@ -1,27 +1,27 @@
-# AdaptiveOptimizerAnalytical configuration for Wuji Glove driving the WH120 hand (RIGHT HAND).
+# AdaptiveOptimizerAnalytical configuration for Wuji Glove driving the Wuji Hand 2 (LEFT HAND).
 #
-# Same retargeting setup as adaptive_analytical_wuji_glove_right.yaml, with the
-# optimizer pointed at the WH120 hand model via the urdf_path / mjcf_path overrides
+# Same retargeting setup as adaptive_analytical_wuji_glove_left.yaml, with the
+# optimizer pointed at the Wuji Hand 2 model via the urdf_path / mjcf_path overrides
 # below. The glove side is hand-model-agnostic: it feeds 21 MediaPipe keypoints into
 # the Retargeter through the wuji_sdk WujiGloveDevice (teleop_sim.py / teleop_real.py).
 #
 # Usage:
-#   sim : python teleop_sim.py  --hand right --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
-#   real: python teleop_real.py --hand right --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+#   sim : python teleop_sim.py  --hand left --config config/adaptive_analytical_wuji_glove_wuji_hand_2_left.yaml
+#   real: python teleop_real.py --hand left --config config/adaptive_analytical_wuji_glove_wuji_hand_2_left.yaml
 
 optimizer:
   type: "AdaptiveOptimizerAnalytical"
-  # --- WH120 = official "Wuji Hand 2" at hand2/body/ in the wuji-description
+  # --- Wuji Hand 2 at hand2/body/ in the wuji-description
   # submodule (v2026.6.11+). Both IK and sim use the official assets shipped there:
   #   IK  : urdf_path  -> official hand2/body/urdf (Pinocchio; meshes not loaded)
   #   sim : mjcf_path  -> official hand2/body/mjcf (MuJoCo; meshes under hand2/body/meshes)
-  urdf_path: "../../wuji_retargeting/wuji-description/hand2/body/urdf/right.urdf"
-  mjcf_path: "../../wuji_retargeting/wuji-description/hand2/body/mjcf/right.xml"
-  # Wuji Hand 2 uses anatomical link names (r_wrist / r_index_finger_pip ...).
+  urdf_path: "../../wuji_retargeting/wuji-description/hand2/body/urdf/left.urdf"
+  mjcf_path: "../../wuji_retargeting/wuji-description/hand2/body/mjcf/left.xml"
+  # Wuji Hand 2 uses anatomical link names (l_wrist / l_index_finger_pip ...).
   # link_naming maps the optimizer's logical roles onto them so the retargeting
   # code stays URDF-agnostic. fingers are ordered thumb..pinky.
   link_naming:
-    prefix: "r_"
+    prefix: "l_"
     palm:    "wrist"
     fingers: [thumb, index_finger, middle_finger, ring_finger, pinky]
     pip:     "{finger}_middle"        # PIP
@@ -67,11 +67,13 @@ retarget:
     middle: { d1: 2.0, d2: 4.0 }
     ring:   { d1: 2.0, d2: 4.0 }
     pinky:  { d1: 2.0, d2: 4.0 }
+  # The left hand's root frame and calibration may differ from the right (often a
+  # mirrored z); tune mediapipe_rotation and the offsets live in tuning_tool.
   mediapipe_rotation:
     x: 0.0
     y: 0.0
-    z: -105.0
-  #
+    z: -75.0
+
   wrist_offset_cm: [0.0, 0.0, 0.0]   # disabled: SDK uses per-SN calibrated URDF, no extra bias needed
   thumb_offset_cm: [0.0, 0.0, 0.0]   # disabled: same reason
 

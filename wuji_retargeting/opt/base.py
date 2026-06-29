@@ -191,7 +191,7 @@ class BaseOptimizer(ABC):
         self.huber_delta = retarget_config.get('huber_delta', 2.0)
         self.norm_delta = retarget_config.get('norm_delta', 0.04)
 
-        # Load URDF. Honor optimizer.urdf_path (e.g. a WH120 model) up front so the
+        # Load URDF. Honor optimizer.urdf_path (e.g. a Wuji Hand 2 model) up front so the
         # link-name resolution and FK index building below run against the actual
         # hand; otherwise use the bundled default URDF for this side. Loading the
         # override here (rather than swapping it in after indices are built) is what
@@ -222,7 +222,7 @@ class BaseOptimizer(ABC):
         self.opt.set_lower_bounds(self.robot.joint_limits[:, 0].tolist())
         self.opt.set_upper_bounds(self.robot.joint_limits[:, 1].tolist())
 
-        # Link names (resolved from config; default reproduces wuji-hand / WH110)
+        # Link names (resolved from config; default reproduces the default Wuji Hand)
         self._resolve_link_names(config)
 
         # Build link indices
@@ -231,7 +231,7 @@ class BaseOptimizer(ABC):
         # Store last solution for warm start
         self.last_qpos = None
 
-    # Default link-name scheme: the wuji-hand / WH110 convention. get_link_index
+    # Default link-name scheme: the default Wuji Hand convention. get_link_index
     # additionally tries the "{hand_side}_" prefix, so these unprefixed names
     # resolve to right_palm_link / right_finger1_link3 / ... on the bundled hands.
     _DEFAULT_LINK_NAMING = {
@@ -247,12 +247,12 @@ class BaseOptimizer(ABC):
     def _resolve_link_names(self, config: dict):
         """Resolve the optimizer's required link names from config.
 
-        Hand URDFs name their links differently — WH110 uses
-        ``right_finger1_link3`` while WH120 uses ``r_index_finger_middle`` — so
+        Hand URDFs name their links differently — Wuji Hand uses
+        ``right_finger1_link3`` while Wuji Hand 2 uses ``r_index_finger_middle`` — so
         ``optimizer.link_naming`` maps the optimizer's logical roles (palm and the
         per-finger tip / PIP / DIP / link1) onto whatever the URDF actually calls
         them, keeping the retargeting code URDF-agnostic. Omitting the block
-        uses the default WH110 naming.
+        uses the default Wuji Hand naming.
 
         ``fingers`` is ordered thumb..pinky. ``prefix`` is
         prepended to every name (e.g. ``r_``); per-finger templates use

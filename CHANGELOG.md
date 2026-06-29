@@ -6,11 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2026.6.27]
+
+### Changed
+
+- Standardized hardware naming across the docs and example configs to `Wuji Hand 2` / `Wuji Hand` / `Wuji Glove`, fixing inconsistent model references. The Wuji Glove example configs are now `adaptive_analytical_wuji_glove_wuji_hand_2_{left,right}.yaml`.
+
 ## [2026.6.15]
 
 ### Added
 
-- Added Wuji Hand 2 (network-connected) support to `teleop_real.py`. Select the hand model with `--hand-model {wh110,wh120}` (inferred from the config when omitted). The new network hand also accepts `--wh120-ip` (auto-discovers when omitted), `--kp`, `--kd`, and `--current-limit`
+- Added Wuji Hand 2 (network-connected) support to `teleop_real.py`. Select the hand model with `--hand-model {wuji_hand,wuji_hand_2}` (inferred from the config when omitted). The new network hand also accepts `--wuji-hand-2-ip` (auto-discovers when omitted), `--kp`, `--kd`, and `--current-limit`
 - Added config-driven hand model selection for retargeting. Point the optimizer at any hand via `optimizer.urdf_path` (IK) and `optimizer.mjcf_path` (simulation). `optimizer.link_naming` maps logical link roles (palm, fingertip, PIP, DIP, MCP) onto the URDF's actual link names, so anatomically named hands work without code changes. Joint commands are remapped by name across the viewer, simulation, and hardware paths, so a URDF that declares fingers in a different order still drives the right ones. Ships right- and left-hand Wuji Hand 2 configs. The default Wuji Hand path is unchanged when no override is set
 - Documented Docker usage in the README. No official Dockerfile is shipped. The Wuji SDK reads per-device assets from `~/.wuji`, which must be mounted into the container when using Wuji Glove or real hardware (simulation and replay do not need it)
 
@@ -65,7 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Added a key-vector retargeting optimizer with example configs for Apple Vision Pro and video
 - Added ZED camera support as a real-time hand input
-- Added interactive parameter tuning visualizer with three-layer skeleton comparison, HUD, and fingertip highlighting; supports hot-reload and playback
+- Added interactive parameter tuning visualizer with three-layer skeleton comparison, HUD, and fingertip highlighting. Supports hot-reload and playback
 
 ## [0.2.0] - 2026-04-07
 
@@ -104,7 +110,8 @@ Initial public release.
 - Added real hardware control example
 - Added YAML-based configuration system with per-finger scaling and pinch thresholds
 
-[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.15...HEAD
+[Unreleased]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.27...HEAD
+[2026.6.27]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.15...v2026.6.27
 [2026.6.15]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.6.10...v2026.6.15
 [2026.6.10]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.26...v2026.6.10
 [2026.05.26]: https://github.com/wuji-technology/wuji-retargeting/compare/v2026.05.23...v2026.05.26

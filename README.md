@@ -177,33 +177,33 @@ mjpython tuning_tool.py --wuji-glove --hand right --glove-sn <YOUR_SN>
 
 The Wuji Glove path adds per-hand configs (`adaptive_analytical_wuji_glove_left.yaml` / `adaptive_analytical_wuji_glove_right.yaml`) and supports neutral-pose offset calibration via `calibrate_offset.py`.
 
-#### Hand model: WH110 (default) and WH120
+#### Hand model: Wuji Hand (default) and Wuji Hand 2
 
-The commands above drive the **WH110** hand — it is the default, no extra flag needed. To drive a **WH120** hand, pass its config (`adaptive_analytical_wuji_glove_wh120_{right,left}.yaml`). That config points the optimizer at the WH120 model via `optimizer.urdf_path` (IK) and `optimizer.mjcf_path` (simulation), and maps the WH120 anatomical link names through `optimizer.link_naming`, so no code change is needed. `teleop_real.py` infers `--hand-model wh120` from the config automatically.
+The commands above drive the **Wuji Hand** — it is the default, no extra flag needed. To drive a **Wuji Hand 2**, pass its config (`adaptive_analytical_wuji_glove_wuji_hand_2_{right,left}.yaml`). That config points the optimizer at the Wuji Hand 2 model via `optimizer.urdf_path` (IK) and `optimizer.mjcf_path` (simulation), and maps the Wuji Hand 2 anatomical link names through `optimizer.link_naming`, so no code change is needed. `teleop_real.py` infers `--hand-model wuji_hand_2` from the config automatically.
 
 ```bash
 cd example
 
 # Tuning (interactive GUI)
 mjpython tuning_tool.py --wuji-glove --hand right --glove-sn <YOUR_SN> \
-    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+    --config config/adaptive_analytical_wuji_glove_wuji_hand_2_right.yaml
 
 # Simulation
 python teleop_sim.py --input wuji_glove --hand right --glove-sn <YOUR_SN> \
-    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+    --config config/adaptive_analytical_wuji_glove_wuji_hand_2_right.yaml
 
-# Real hardware — WH120 is a networked "Wuji Hand 2" (Ethernet via wuji_sdk),
-# not the USB path WH110 uses. With one hand online it is auto-discovered:
+# Real hardware — the Wuji Hand 2 is a networked hand (Ethernet via wuji_sdk),
+# not the USB path the Wuji Hand uses. With one hand online it is auto-discovered:
 python teleop_real.py --input wuji_glove --hand right --glove-sn <YOUR_SN> \
-    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+    --config config/adaptive_analytical_wuji_glove_wuji_hand_2_right.yaml
 
-# If multiple WH120 hands are online, choose one explicitly by address:
+# If multiple Wuji Hand 2 hands are online, choose one explicitly by address:
 python teleop_real.py --input wuji_glove --hand right --glove-sn <YOUR_SN> \
-    --wh120-ip <hand-ip>:50001 \
-    --config config/adaptive_analytical_wuji_glove_wh120_right.yaml
+    --wuji-hand-2-ip <hand-ip>:50001 \
+    --config config/adaptive_analytical_wuji_glove_wuji_hand_2_right.yaml
 ```
 
-Use `--hand left` with `adaptive_analytical_wuji_glove_wh120_left.yaml` for the left hand. WH120 and WH110 firmware must match the installed `wuji_sdk`; mismatched firmware fails fast at connect with a clear error.
+Use `--hand left` with `adaptive_analytical_wuji_glove_wuji_hand_2_left.yaml` for the left hand. Wuji Hand 2 and Wuji Hand firmware must match the installed `wuji_sdk`; mismatched firmware fails fast at connect with a clear error.
 
 ### Custom Input Devices
 
