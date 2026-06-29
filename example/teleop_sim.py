@@ -158,7 +158,7 @@ def run_teleop(
     hand_side = hand_side.lower()
     assert hand_side in {"right", "left"}, "hand_side must be 'right' or 'left'"
 
-    # Load MuJoCo model. Honor optimizer.mjcf_path in the config (e.g. a WH120
+    # Load MuJoCo model. Honor optimizer.mjcf_path in the config (e.g. a Wuji Hand 2
     # model) so the sim hand matches the IK hand selected via optimizer.urdf_path;
     # otherwise fall back to the bundled default hand for this side.
     config_file = Path(__file__).parent / config_path
@@ -261,8 +261,8 @@ def run_teleop(
 
     # qpos is in URDF/Pinocchio joint order; data.ctrl is in actuator order. These
     # differ when the URDF declares fingers in a different order than the MJCF
-    # (e.g. WH120). Remap by joint name so each actuator gets its own joint's
-    # angle; identity when orders match (WH110).
+    # (e.g. Wuji Hand 2). Remap by joint name so each actuator gets its own joint's
+    # angle; identity when orders match (Wuji Hand).
     _act_joint_order = [
         mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, model.actuator_trnid[i, 0])
         for i in range(model.nu)
@@ -272,7 +272,7 @@ def run_teleop(
     )
     # If the config declares a custom hand (optimizer.mjcf_path) but the joint names
     # can't be aligned, qpos_reorder_perm returns None — same as the legitimate
-    # WH110 "no remap" case. Falling back to identity here would silently drive the
+    # Wuji Hand "no remap" case. Falling back to identity here would silently drive the
     # wrong joints, so fail loudly when a custom MJCF was actually requested.
     if mjcf_override and _qpos_perm is None:
         raise ValueError(

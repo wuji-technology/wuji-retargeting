@@ -117,10 +117,10 @@ class SkeletonDrawer:
             data: MuJoCo data
             hand_side: 'left' or 'right'
             viz_config: Visualization config dict (skeleton section from tuning_viz.yaml)
-            link_naming: Optional optimizer.link_naming block. When set (e.g. WH120's
+            link_naming: Optional optimizer.link_naming block. When set (e.g. Wuji Hand 2's
                 r_wrist / r_index_finger_* scheme), the MediaPipe->body map and
                 the wrist-body lookup are built from it so the overlay matches the
-                optimizer's link resolution. Omitting it uses the default WH110 map.
+                optimizer's link resolution. Omitting it uses the default Wuji Hand map.
         """
         self.model = model
         self.data = data
@@ -159,10 +159,10 @@ class SkeletonDrawer:
     def _resolve_body_names(self, link_naming: dict):
         """Resolve (MediaPipe-index -> body-name map, wrist-body candidates).
 
-        With ``optimizer.link_naming`` (e.g. WH120's anatomical scheme) both are
+        With ``optimizer.link_naming`` (e.g. Wuji Hand 2's anatomical scheme) both are
         built from the templates: MP wrist->palm, and per finger
         MCP->link1, PIP->pip, DIP->dip, TIP->tip. Without it, fall back to the
-        default WH110 map + base/palm candidate list.
+        default Wuji Hand map + base/palm candidate list.
         """
         if not link_naming:
             wrist_candidates = [

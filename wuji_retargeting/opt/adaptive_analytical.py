@@ -98,7 +98,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.w_couple = retarget_config.get('w_couple', 0.0)
         self.couple_ratio = retarget_config.get('couple_ratio', 0.7)
 
-        # The optimizer.urdf_path override (e.g. a WH120 model) is loaded up front
+        # The optimizer.urdf_path override (e.g. a Wuji Hand 2 model) is loaded up front
         # by BaseOptimizer, so self.robot is already the final hand here.
 
         # Resolve PIP/DIP qpos indices from the (possibly overridden) URDF.
@@ -111,7 +111,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         link's parent joint, so the mapping follows the actual URDF instead of a
         fixed index layout. This keeps the hyperextension (``w_hyper``) and
         DIP<->PIP coupling (``w_couple``) soft constraints on the correct qpos
-        dimensions even when a custom URDF (``optimizer.urdf_path``, e.g. WH120)
+        dimensions even when a custom URDF (``optimizer.urdf_path``, e.g. Wuji Hand 2)
         declares joints in a different order or with a non-uniform DOF layout. A
         missing finger link or a duplicate resolved index raises immediately at
         load time instead of corrupting the optimization silently.
